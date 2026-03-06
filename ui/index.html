@@ -153,7 +153,7 @@ svg.conns{position:absolute;inset:0;pointer-events:none;z-index:5}
 .acard-hdr{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .role-icon{width:24px;height:24px;border-radius:4px;display:flex;align-items:center;
            justify-content:center;font-size:0.875em;flex-shrink:0}
-.aname{font-family:var(--font-heading);font-size:10px;flex:1}
+.aname{font-family:var(--font-heading);font-size:9px;flex:1}
 .sdot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
 .sdot.working{background:#4caf50;box-shadow:0 0 4px #4caf50;animation:pulse 1s infinite}
 .sdot.thinking{background:#ffdd6e;box-shadow:0 0 4px #ffdd6e;animation:pulse 2s infinite}
@@ -195,7 +195,7 @@ svg.conns{position:absolute;inset:0;pointer-events:none;z-index:5}
 .chat-input-row{display:flex;gap:6px;padding:8px;background:#090b14;
                 border-top:1px solid var(--border);flex-shrink:0}
 .chat-input{flex:1;background:#0d0f1a;border:1px solid var(--border);border-radius:3px;
-            color:var(--text);font-family:var(--font-body);font-size:1.125em;
+            color:var(--text);font-family:var(--font-body);font-size:0.9375em;
             padding:5px 8px;outline:none;transition:border-color .15s}
 .chat-input:focus{border-color:var(--accent)}
 .chat-send{background:#4fc3f715;border:1px solid #4fc3f740;color:var(--accent);
@@ -267,6 +267,21 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:1000;
 .settings-size-btn:hover{background:#4fc3f720}
 .settings-size-val{font-family:var(--font-heading);font-size:12px;color:var(--text);
   min-width:24px;text-align:center}
+
+/* CJK heading font-size boost — Press Start 2P at Npx ≈ Noto Sans Mono at ~1.3Npx */
+.lang-cjk .logo{font-size:15px}
+.lang-cjk .nametag{font-size:10px}
+.lang-cjk .aname{font-size:12px}
+.lang-cjk .chat-hdr-name{font-size:12px}
+.lang-cjk .chat-send{font-size:12px}
+.lang-cjk .log-tag{font-size:11px}
+.lang-cjk .bridge-btn{font-size:12px}
+.lang-cjk .settings-btn{font-size:12px}
+.lang-cjk .settings-title{font-size:13px}
+.lang-cjk .settings-label{font-size:11px}
+.lang-cjk .settings-size-btn{font-size:13px}
+.lang-cjk .settings-size-val{font-size:13px}
+.lang-cjk .tab{font-size:12px}
 </style>
 </head>
 <body>
@@ -274,7 +289,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:1000;
 <header>
   <div class="logo">AGENT<em>OFFICE</em> <span class="version">v0.1.0</span></div>
   <div class="hright">
-    <span><span class="ws-dot" id="ws-dot"></span><span id="ws-label" data-i18n="status.disconnected">DISCONNECTED</span></span>
+    <span><span class="ws-dot" id="ws-dot"></span><span id="ws-label">DISCONNECTED</span></span>
     <span id="clock">00:00:00</span>
     <span id="acnt" style="color:var(--accent)">0 AGENTS</span>
   </div>
@@ -752,6 +767,8 @@ function applyI18n() {
   // Update chat send button
   const sendBtn = document.getElementById('chat-send-btn');
   if (sendBtn) sendBtn.textContent = t('chat.send');
+  // Re-render chat messages to translate empty state
+  if (selectedAgent) renderChatMessages(selectedAgent);
   // Update chat placeholder
   const chatInput = document.getElementById('chat-input');
   if (chatInput && selectedAgent) {
@@ -760,6 +777,8 @@ function applyI18n() {
   // Update agent count
   const acnt = document.getElementById('acnt');
   if (acnt) acnt.textContent = t('header.agentCount', {count: agents.length});
+  // Re-render connection status with correct translation
+  setStatus(currentStatusKey, currentStatusCls);
   // Re-render stations to update status badges
   if (typeof renderAll === 'function') renderAll();
 }
@@ -780,10 +799,14 @@ function saveSettings(s) {
 
 function applySettings(s) {
   const root = document.documentElement;
-  const fontVal = s.font.includes(',') ? s.font : `'${s.font}', 'Noto Sans Mono', monospace`;
+  const isCJK = ['zh-TW', 'zh-CN', 'ja', 'ko'].includes(s.lang);
+  const effectiveFont = isCJK ? 'monospace' : s.font;
+  const effectiveSize = isCJK ? 13 : s.fontSize;
+  const fontVal = effectiveFont.includes(',') ? effectiveFont : `'${effectiveFont}', 'Noto Sans Mono', monospace`;
   root.style.setProperty('--font-body', fontVal);
-  root.style.setProperty('--font-size-base', s.fontSize + 'px');
+  root.style.setProperty('--font-size-base', effectiveSize + 'px');
   currentLang = s.lang;
+  document.documentElement.classList.toggle('lang-cjk', isCJK);
   applyI18n();
 }
 
@@ -876,7 +899,12 @@ function connectWS() {
   };
 }
 
+let currentStatusKey = 'status.disconnected';
+let currentStatusCls = '';
+
 function setStatus(key, cls) {
+  currentStatusKey = key;
+  currentStatusCls = cls;
   const dot = document.getElementById('ws-dot');
   const lbl = document.getElementById('ws-label');
   dot.className = 'ws-dot' + (cls ? ' ' + cls : '');
@@ -1337,7 +1365,7 @@ function openChat(agentId) {
   document.getElementById('chat-icon').textContent = r.emoji;
   document.getElementById('chat-name').textContent = `${agent.name||agentId} (${r.label})`;
   document.getElementById('chat-name').style.color = r.color;
-  document.getElementById('chat-input').placeholder = `Message ${agent.name||agentId}…`;
+  document.getElementById('chat-input').placeholder = t('chat.placeholder', {agent: agent.name||agentId});
 
   renderChatMessages(agentId);
   renderAll();
