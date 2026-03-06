@@ -10,6 +10,7 @@
 
 import { watch } from "node:fs";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import {
   getTeamConfig,
@@ -653,6 +654,42 @@ watch(STATE_FILE, () => {
     } catch {}
   }, 100);
 });
+
+// ─── Watch ~/.claude/teams/ for new teams ─────────────────────────────────────
+const TEAMS_DIR = join(homedir(), ".claude", "teams");
+let teamsWatchDebounce: ReturnType<typeof setTimeout> | null = null;
+let lastKnownTeams = JSON.stringify(listTeams());
+
+function checkForTeamChanges() {
+  const current = JSON.stringify(listTeams());
+  if (current !== lastKnownTeams) {
+    lastKnownTeams = current;
+    const teams = listTeams();
+    broadcast("teams_updated", teams);
+    console.log(
+      `[TEAMS] Team list changed — ${teams.length} active team(s): ${teams.map((t) => t.name).join(", ") || "none"}`,
+    );
+  }
+}
+
+if (existsSync(TEAMS_DIR)) {
+  watch(TEAMS_DIR, { recursive: true }, () => {
+    if (teamsWatchDebounce) clearTimeout(teamsWatchDebounce);
+    teamsWatchDebounce = setTimeout(() => {
+      teamsWatchDebounce = null;
+      checkForTeamChanges();
+    }, 500);
+  });
+  console.log(`[TEAMS] Watching ${TEAMS_DIR} for new teams`);
+} else {
+  // Poll periodically in case the directory is created later
+  setInterval(() => {
+    if (existsSync(TEAMS_DIR)) {
+      checkForTeamChanges();
+    }
+  }, 5000);
+  console.log("[TEAMS] ~/.claude/teams/ not found — polling every 5s");
+}
 
 // ─── Bun server ──────────────────────────────────────────────────────────────
 const server = Bun.serve({

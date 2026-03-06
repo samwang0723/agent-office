@@ -537,6 +537,8 @@ function connectWS() {
         receiveReply(data.agentId, data.reply);
       } else if (event === 'message_sent') {
         addLog(data.agentId, `message sent: "${data.message.slice(0,40)}"`);
+      } else if (event === 'teams_updated') {
+        handleTeamsUpdated(data);
       }
     } catch {}
   };
@@ -1293,6 +1295,33 @@ async function fetchTeams() {
       renderAll();
     }
   } catch {}
+}
+
+function handleTeamsUpdated(teams) {
+  const sel = document.getElementById('team-select');
+  const currentTeam = sel.value;
+  sel.innerHTML = '<option value="">— select team —</option>';
+  teams.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t.name;
+    opt.textContent = `${t.name} (${t.memberCount})`;
+    sel.appendChild(opt);
+  });
+
+  if (teams.length > 0) {
+    // If we had a team selected and it's still in the list, keep it
+    const stillExists = teams.find(t => t.name === currentTeam);
+    if (stillExists) {
+      sel.value = currentTeam;
+    } else {
+      // Auto-select the newest team (last in list)
+      const latest = teams[teams.length - 1];
+      sel.value = latest.name;
+      selectTeam(latest.name);
+      addLog('system', `New team detected: ${latest.name} — auto-connected`);
+    }
+  }
+  addLog('system', `Teams updated: ${teams.length} active team(s)`);
 }
 
 async function selectTeam(teamName) {
