@@ -1,0 +1,7 @@
+node_modules/
+.DS_Store
+data/bridge.log
+data/inbox/
+data/agents.json
+CLAUDE.md
+CLAUDE-*.md

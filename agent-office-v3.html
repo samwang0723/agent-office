@@ -1,0 +1,1332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Office — Claude Code</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323:wght@400&display=swap');
+
+:root {
+  --bg: #0d0f1a;
+  --floor: #1a1d2e;
+  --border: #2a2d3e;
+  --accent: #4fc3f7;
+  --panel-bg: #090b14ee;
+  --bubble-bg: #1a1d2e;
+  --text: #e0e6ff;
+  --grid: #ffffff08;
+  --pm:   #ff6eb4;
+  --arch: #6ec6ff;
+  --dev:  #6eff9e;
+  --qa:   #ffdd6e;
+  --sec:  #ff8c6e;
+}
+*{box-sizing:border-box;margin:0;padding:0;image-rendering:pixelated}
+body{background:var(--bg);font-family:'VT323',monospace;color:var(--text);
+     overflow:hidden;height:100vh;width:100vw;display:flex;flex-direction:column}
+
+/* ── HEADER ─────────────────────────────────────────────────── */
+header{background:#090b14;border-bottom:2px solid var(--border);padding:7px 16px;
+       display:flex;align-items:center;justify-content:space-between;flex-shrink:0;z-index:100}
+.logo{font-family:'Press Start 2P',monospace;font-size:13px;color:var(--accent);
+      text-shadow:0 0 10px #4fc3f788}
+.logo em{color:var(--pm);font-style:normal}
+.hright{display:flex;align-items:center;gap:14px;font-size:18px;color:#556}
+.ws-dot{width:7px;height:7px;border-radius:50%;background:#444;
+        box-shadow:none;transition:all .3s;display:inline-block;margin-right:4px}
+.ws-dot.connected{background:#4caf50;box-shadow:0 0 6px #4caf50;animation:pulse 1.5s infinite}
+.ws-dot.error{background:#ff5252;box-shadow:0 0 6px #ff5252}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(.8)}}
+
+/* ── MAIN ───────────────────────────────────────────────────── */
+.main{display:flex;flex:1;overflow:hidden}
+
+/* ── OFFICE SCENE ───────────────────────────────────────────── */
+.office{flex:1;position:relative;overflow:hidden;background:var(--floor);
+        background-image:linear-gradient(var(--grid) 1px,transparent 1px),
+                          linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+        background-size:32px 32px}
+.office::before{content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 80% 50% at 50% 80%,#1e2240 0%,transparent 70%)}
+.office::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:2;
+  background:radial-gradient(ellipse at 50% 50%,transparent 60%,#00000088 100%)}
+
+/* ── STATIONS ───────────────────────────────────────────────── */
+.station{position:absolute;display:flex;flex-direction:column;align-items:center;
+         cursor:pointer;z-index:10;transition:transform .15s,filter .2s;user-select:none}
+.station:hover{transform:scale(1.06);z-index:20}
+.station.selected{z-index:25}
+
+/* ── COMPACT / STACKED MODE ────────────────────────────────── */
+.office.compact{display:flex;flex-wrap:wrap;align-content:flex-start;
+                justify-content:center;gap:8px;padding:12px;overflow-y:auto}
+.office.compact .station{position:static;flex-shrink:0}
+.office.compact .station:hover{transform:scale(1.04)}
+.office.compact svg.conns{display:none}
+.office.compact .earth-bg{display:none}
+
+/* ── SCENE: single SVG canvas per agent ─────────────────────── */
+.scene-svg{display:block;overflow:visible}
+.scene-svg.anim-working .agent-head{animation:work-head .5s ease-in-out infinite}
+.scene-svg.anim-working .agent-arms{animation:work-arms .4s ease-in-out infinite}
+.scene-svg.anim-thinking .agent-head{animation:think-head 3s ease-in-out infinite}
+.scene-svg.anim-idle .agent-head{animation:idle-nod 2.5s ease-in-out infinite;opacity:.7}
+.scene-svg.anim-idle .agent-arms{opacity:.4}
+.scene-svg.anim-blocked .agent-head{animation:blocked-shake 1s ease-in-out infinite}
+.scene-svg.anim-reviewing .agent-head{animation:think-head 2s ease-in-out infinite}
+@keyframes work-head{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+@keyframes work-arms{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+@keyframes think-head{0%,100%{transform:rotate(0) translateY(0)}40%{transform:rotate(-6deg) translateY(-3px)}70%{transform:rotate(3deg) translateY(-1px)}}
+@keyframes idle-nod{0%,100%{transform:rotate(0) translateY(0)}50%{transform:rotate(14deg) translateY(3px)}}
+@keyframes blocked-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-2px)}75%{transform:translateX(2px)}}
+
+/* ── NAMETAG & STATUS ───────────────────────────────────────── */
+.nametag{font-family:'Press Start 2P',monospace;font-size:9px;padding:3px 7px;
+         border-radius:2px;margin-top:4px;white-space:nowrap;border:1px solid currentColor;opacity:.9}
+.sbadge{font-size:16px;padding:2px 8px;border-radius:2px;margin-top:2px;
+        background:#ffffff10;color:#aaa;white-space:nowrap}
+.sbadge.working{color:#4caf50}.sbadge.thinking{color:#ffdd6e}
+.sbadge.idle{color:#555}.sbadge.blocked{color:#ff5252}.sbadge.reviewing{color:#6ec6ff}
+
+/* ── PROGRESS ───────────────────────────────────────────────── */
+.prog-wrap{width:80px;height:4px;background:#ffffff10;border-radius:2px;margin-top:3px;overflow:hidden}
+.prog-bar{height:100%;border-radius:2px;transition:width .5s ease}
+
+/* ── SPEECH BUBBLE (hover) ──────────────────────────────────── */
+.speech{position:absolute;top:-54px;left:50%;transform:translateX(-50%) translateY(6px);
+        background:var(--bubble-bg);border:1px solid var(--border);border-radius:4px;
+        padding:6px 10px;font-size:16px;white-space:nowrap;max-width:280px;
+        overflow:hidden;text-overflow:ellipsis;opacity:0;transition:all .2s;
+        pointer-events:none;z-index:50;box-shadow:0 2px 8px #0008}
+.speech::after{content:'';position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);
+  border:5px solid transparent;border-top-color:var(--border);border-bottom:none}
+.station:hover .speech{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ── TYPING CURSOR ───────────────────────────────────────────── */
+.cur{display:inline-block;width:6px;height:12px;background:currentColor;
+     margin-left:3px;animation:blink .8s step-end infinite;vertical-align:middle}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+/* ── UNREAD BADGE ────────────────────────────────────────────── */
+.unread-badge{position:absolute;top:-6px;right:-6px;background:#ff5252;
+              border-radius:50%;width:16px;height:16px;font-size:10px;
+              display:flex;align-items:center;justify-content:center;
+              font-family:'Press Start 2P',monospace;z-index:30;
+              box-shadow:0 0 6px #ff5252;animation:pulse .8s infinite}
+
+/* ── PARTICLES ───────────────────────────────────────────────── */
+.particle{position:absolute;font-size:14px;animation:floatup 2s ease-out forwards;
+          pointer-events:none;z-index:30}
+@keyframes floatup{0%{opacity:1;transform:translateY(0) scale(1)}
+                   100%{opacity:0;transform:translateY(-40px) scale(.5)}}
+
+/* ── CONNECTIONS SVG ─────────────────────────────────────────── */
+svg.conns{position:absolute;inset:0;pointer-events:none;z-index:5}
+
+/* ── EARTH BG ──────────────────────────────────────────────────── */
+.earth-bg{position:absolute;pointer-events:none;z-index:1;opacity:.8;transition:left .3s,top .3s,width .3s,height .3s}
+
+/* ── SIDE PANEL ──────────────────────────────────────────────── */
+.panel{width:310px;flex-shrink:0;background:var(--panel-bg);
+       border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.tabs{display:flex;border-bottom:1px solid var(--border)}
+.tab{flex:1;padding:10px;text-align:center;font-size:16px;cursor:pointer;
+     color:#445;border-bottom:2px solid transparent;transition:all .15s}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab:hover:not(.active){color:#667}
+.tab .badge{background:#ff5252;color:#fff;border-radius:10px;padding:1px 5px;
+            font-family:'Press Start 2P',monospace;font-size:8px;margin-left:4px}
+.pcontent{flex:1;overflow-y:auto;padding:12px;scrollbar-width:thin;scrollbar-color:#2a2d3e transparent}
+
+/* ── AGENT CARDS ─────────────────────────────────────────────── */
+.acard{background:#12142099;border:1px solid var(--border);border-radius:4px;
+       padding:10px;margin-bottom:8px;cursor:pointer;transition:all .15s;
+       border-left:3px solid transparent}
+.acard:hover{background:#1a1d2e}
+.acard.sel{background:#1a1d2e}
+.acard-hdr{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.role-icon{width:24px;height:24px;border-radius:4px;display:flex;align-items:center;
+           justify-content:center;font-size:14px;flex-shrink:0}
+.aname{font-family:'Press Start 2P',monospace;font-size:10px;flex:1}
+.sdot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.sdot.working{background:#4caf50;box-shadow:0 0 4px #4caf50;animation:pulse 1s infinite}
+.sdot.thinking{background:#ffdd6e;box-shadow:0 0 4px #ffdd6e;animation:pulse 2s infinite}
+.sdot.idle{background:#333}
+.sdot.blocked{background:#ff5252;box-shadow:0 0 4px #ff5252;animation:pulse .5s infinite}
+.sdot.reviewing{background:#6ec6ff;box-shadow:0 0 4px #6ec6ff;animation:pulse 1.5s infinite}
+.atask{font-size:16px;color:#778;line-height:1.4;max-height:42px;overflow:hidden}
+.atask span{color:#99a}
+.ameta{display:flex;gap:6px;margin-top:5px;font-size:14px;color:#445}
+.chip{background:#ffffff08;border:1px solid #ffffff10;padding:2px 6px;border-radius:2px}
+.aprog{width:100%;height:4px;background:#ffffff08;border-radius:2px;margin-top:6px;overflow:hidden}
+.aprog-bar{height:100%;border-radius:2px;transition:width .5s}
+
+/* ── CHAT PANEL (shown when agent selected) ──────────────────── */
+.chat-panel{border-top:1px solid var(--border);flex-shrink:0;
+            display:flex;flex-direction:column;max-height:260px}
+.chat-hdr{padding:8px 12px;background:#090b14;border-bottom:1px solid var(--border);
+          display:flex;align-items:center;gap:8px;flex-shrink:0}
+.chat-hdr-icon{font-size:16px}
+.chat-hdr-name{font-family:'Press Start 2P',monospace;font-size:10px}
+.chat-hdr-close{margin-left:auto;cursor:pointer;color:#445;font-size:16px;
+                padding:2px 6px;border-radius:3px;transition:color .15s}
+.chat-hdr-close:hover{color:#889}
+.chat-messages{flex:1;overflow-y:auto;padding:8px;
+               scrollbar-width:thin;scrollbar-color:#2a2d3e transparent;
+               display:flex;flex-direction:column;gap:6px;min-height:60px}
+.msg{max-width:85%;font-size:17px;line-height:1.4;padding:6px 10px;border-radius:4px}
+.msg.user{align-self:flex-end;background:#4fc3f720;border:1px solid #4fc3f740;color:#aee}
+.msg.agent{align-self:flex-start;background:#12142099;border:1px solid var(--border);color:#ccd}
+.msg-meta{font-size:13px;opacity:.5;margin-top:2px}
+.msg.user .msg-meta{text-align:right}
+.typing-msg{align-self:flex-start;background:#12142099;border:1px solid var(--border);
+            padding:6px 12px;border-radius:4px;font-size:20px;color:#445}
+.chat-input-row{display:flex;gap:6px;padding:8px;background:#090b14;
+                border-top:1px solid var(--border);flex-shrink:0}
+.chat-input{flex:1;background:#0d0f1a;border:1px solid var(--border);border-radius:3px;
+            color:var(--text);font-family:'VT323',monospace;font-size:18px;
+            padding:5px 8px;outline:none;transition:border-color .15s}
+.chat-input:focus{border-color:var(--accent)}
+.chat-send{background:#4fc3f715;border:1px solid #4fc3f740;color:var(--accent);
+           font-family:'Press Start 2P',monospace;font-size:10px;padding:8px 12px;
+           cursor:pointer;border-radius:3px;transition:all .15s;white-space:nowrap;
+           display:inline-flex;align-items:center;gap:4px;line-height:1}
+.chat-send:hover{background:#4fc3f725}
+.chat-send:disabled{opacity:.3;cursor:not-allowed}
+
+/* ── LOG ─────────────────────────────────────────────────────── */
+.log-entry{display:flex;gap:8px;padding:5px 0;border-bottom:1px solid #ffffff05;
+           font-size:16px;line-height:1.4}
+.log-time{color:#334;flex-shrink:0;font-size:14px;padding-top:1px}
+.log-text{color:#667;flex:1}
+.log-tag{font-family:'Press Start 2P',monospace;font-size:9px;padding:2px 5px;border-radius:2px}
+
+/* ── TICKER ──────────────────────────────────────────────────── */
+.ticker{background:#090b14;border-top:1px solid var(--border);overflow:hidden;
+        flex-shrink:0;height:24px;display:flex;align-items:center}
+.ticker-track{display:flex;gap:40px;animation:scroll 35s linear infinite;
+              white-space:nowrap;font-size:16px;color:#334}
+@keyframes scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.ti .hi{color:#4caf5066}
+
+/* ── SCANLINES ───────────────────────────────────────────────── */
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:1000;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,#00000010 2px,#00000010 4px)}
+
+/* ── BRIDGE CONFIG ───────────────────────────────────────────── */
+.bridge-bar{background:#090b14;border-bottom:1px solid var(--border);padding:6px 16px;
+            display:flex;align-items:center;gap:10px;font-size:16px;flex-shrink:0}
+.bridge-url{background:#0d0f1a;border:1px solid var(--border);border-radius:3px;
+            color:#6eff9e;font-family:'VT323',monospace;font-size:16px;padding:4px 8px;
+            outline:none;width:200px;transition:border-color .15s}
+.bridge-url:focus{border-color:var(--accent)}
+.bridge-btn{background:#4fc3f710;border:1px solid #4fc3f730;color:var(--accent);
+            font-family:'Press Start 2P',monospace;font-size:10px;padding:6px 10px;
+            cursor:pointer;border-radius:3px;transition:all .15s}
+.bridge-btn:hover{background:#4fc3f720}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">AGENT<em>OFFICE</em></div>
+  <div class="hright">
+    <span><span class="ws-dot" id="ws-dot"></span><span id="ws-label">DISCONNECTED</span></span>
+    <span id="clock">00:00:00</span>
+    <span id="acnt" style="color:var(--accent)">0 AGENTS</span>
+  </div>
+</header>
+
+<!-- Bridge connection bar -->
+<div class="bridge-bar">
+  <span style="color:#445">BRIDGE</span>
+  <input class="bridge-url" id="bridge-url" value="ws://localhost:3456" placeholder="ws://localhost:3456" />
+  <button class="bridge-btn" onclick="connectWS()">CONNECT</button>
+  <span style="color:#445;margin-left:12px">TEAM</span>
+  <select id="team-select" class="bridge-url" style="width:160px;cursor:pointer" onchange="selectTeam(this.value)">
+    <option value="">— select team —</option>
+  </select>
+  <span id="bridge-status" style="color:#445;font-size:16px">—</span>
+</div>
+
+<div class="main">
+  <!-- OFFICE SCENE -->
+  <div class="office" id="office">
+    <!-- Pixel Earth background -->
+    <svg class="earth-bg" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#1a3a5c" stop-opacity="0.4"/>
+          <stop offset="70%" stop-color="#0d1a2e" stop-opacity="0.2"/>
+          <stop offset="100%" stop-color="transparent" stop-opacity="0"/>
+        </radialGradient>
+        <radialGradient id="atmosphere" cx="50%" cy="50%" r="52%">
+          <stop offset="85%" stop-color="transparent"/>
+          <stop offset="95%" stop-color="#4fc3f7" stop-opacity="0.08"/>
+          <stop offset="100%" stop-color="#4fc3f7" stop-opacity="0.03"/>
+        </radialGradient>
+        <clipPath id="globe-clip">
+          <circle cx="200" cy="200" r="150"/>
+        </clipPath>
+      </defs>
+      <!-- Glow -->
+      <circle cx="200" cy="200" r="200" fill="url(#glow)"/>
+      <!-- Ocean base -->
+      <circle id="earth-ocean" cx="200" cy="200" r="150" fill="#0c2d48" opacity="0.5"/>
+      <!-- Pixel continents (12px blocks, clipped to globe) -->
+      <g id="earth-land" fill="#1a4a2a" opacity="0.45" clip-path="url(#globe-clip)">
+        <!-- North America -->
+        <rect x="60" y="72" width="12" height="12"/><rect x="72" y="72" width="12" height="12"/>
+        <rect x="84" y="72" width="12" height="12"/><rect x="96" y="72" width="12" height="12"/>
+        <rect x="48" y="84" width="12" height="12"/><rect x="60" y="84" width="12" height="12"/>
+        <rect x="72" y="84" width="12" height="12"/><rect x="84" y="84" width="12" height="12"/>
+        <rect x="96" y="84" width="12" height="12"/><rect x="108" y="84" width="12" height="12"/>
+        <rect x="48" y="96" width="12" height="12"/><rect x="60" y="96" width="12" height="12"/>
+        <rect x="72" y="96" width="12" height="12"/><rect x="84" y="96" width="12" height="12"/>
+        <rect x="96" y="96" width="12" height="12"/><rect x="108" y="96" width="12" height="12"/>
+        <rect x="120" y="96" width="12" height="12"/>
+        <rect x="60" y="108" width="12" height="12"/><rect x="72" y="108" width="12" height="12"/>
+        <rect x="84" y="108" width="12" height="12"/><rect x="96" y="108" width="12" height="12"/>
+        <rect x="108" y="108" width="12" height="12"/><rect x="120" y="108" width="12" height="12"/>
+        <rect x="72" y="120" width="12" height="12"/><rect x="84" y="120" width="12" height="12"/>
+        <rect x="96" y="120" width="12" height="12"/><rect x="108" y="120" width="12" height="12"/>
+        <rect x="84" y="132" width="12" height="12"/><rect x="96" y="132" width="12" height="12"/>
+        <rect x="108" y="132" width="12" height="12"/>
+        <rect x="96" y="144" width="12" height="12"/><rect x="108" y="144" width="12" height="12"/>
+        <rect x="96" y="156" width="12" height="12"/>
+        <!-- South America -->
+        <rect x="120" y="192" width="12" height="12"/><rect x="132" y="192" width="12" height="12"/>
+        <rect x="144" y="192" width="12" height="12"/>
+        <rect x="108" y="204" width="12" height="12"/><rect x="120" y="204" width="12" height="12"/>
+        <rect x="132" y="204" width="12" height="12"/><rect x="144" y="204" width="12" height="12"/>
+        <rect x="108" y="216" width="12" height="12"/><rect x="120" y="216" width="12" height="12"/>
+        <rect x="132" y="216" width="12" height="12"/><rect x="144" y="216" width="12" height="12"/>
+        <rect x="108" y="228" width="12" height="12"/><rect x="120" y="228" width="12" height="12"/>
+        <rect x="132" y="228" width="12" height="12"/>
+        <rect x="108" y="240" width="12" height="12"/><rect x="120" y="240" width="12" height="12"/>
+        <rect x="132" y="240" width="12" height="12"/>
+        <rect x="108" y="252" width="12" height="12"/><rect x="120" y="252" width="12" height="12"/>
+        <rect x="108" y="264" width="12" height="12"/><rect x="120" y="264" width="12" height="12"/>
+        <rect x="108" y="276" width="12" height="12"/>
+        <!-- Europe -->
+        <rect x="180" y="72" width="12" height="12"/><rect x="192" y="72" width="12" height="12"/>
+        <rect x="204" y="72" width="12" height="12"/>
+        <rect x="168" y="84" width="12" height="12"/><rect x="180" y="84" width="12" height="12"/>
+        <rect x="192" y="84" width="12" height="12"/><rect x="204" y="84" width="12" height="12"/>
+        <rect x="216" y="84" width="12" height="12"/>
+        <rect x="168" y="96" width="12" height="12"/><rect x="180" y="96" width="12" height="12"/>
+        <rect x="192" y="96" width="12" height="12"/><rect x="204" y="96" width="12" height="12"/>
+        <rect x="216" y="96" width="12" height="12"/>
+        <rect x="180" y="108" width="12" height="12"/><rect x="192" y="108" width="12" height="12"/>
+        <rect x="204" y="108" width="12" height="12"/>
+        <rect x="192" y="120" width="12" height="12"/><rect x="204" y="120" width="12" height="12"/>
+        <!-- Africa -->
+        <rect x="192" y="144" width="12" height="12"/><rect x="204" y="144" width="12" height="12"/>
+        <rect x="216" y="144" width="12" height="12"/>
+        <rect x="180" y="156" width="12" height="12"/><rect x="192" y="156" width="12" height="12"/>
+        <rect x="204" y="156" width="12" height="12"/><rect x="216" y="156" width="12" height="12"/>
+        <rect x="228" y="156" width="12" height="12"/>
+        <rect x="180" y="168" width="12" height="12"/><rect x="192" y="168" width="12" height="12"/>
+        <rect x="204" y="168" width="12" height="12"/><rect x="216" y="168" width="12" height="12"/>
+        <rect x="228" y="168" width="12" height="12"/>
+        <rect x="180" y="180" width="12" height="12"/><rect x="192" y="180" width="12" height="12"/>
+        <rect x="204" y="180" width="12" height="12"/><rect x="216" y="180" width="12" height="12"/>
+        <rect x="228" y="180" width="12" height="12"/>
+        <rect x="192" y="192" width="12" height="12"/><rect x="204" y="192" width="12" height="12"/>
+        <rect x="216" y="192" width="12" height="12"/><rect x="228" y="192" width="12" height="12"/>
+        <rect x="192" y="204" width="12" height="12"/><rect x="204" y="204" width="12" height="12"/>
+        <rect x="216" y="204" width="12" height="12"/>
+        <rect x="204" y="216" width="12" height="12"/><rect x="216" y="216" width="12" height="12"/>
+        <rect x="204" y="228" width="12" height="12"/>
+        <!-- Asia -->
+        <rect x="228" y="72" width="12" height="12"/><rect x="240" y="72" width="12" height="12"/>
+        <rect x="252" y="72" width="12" height="12"/><rect x="264" y="72" width="12" height="12"/>
+        <rect x="276" y="72" width="12" height="12"/>
+        <rect x="216" y="84" width="12" height="12"/><rect x="228" y="84" width="12" height="12"/>
+        <rect x="240" y="84" width="12" height="12"/><rect x="252" y="84" width="12" height="12"/>
+        <rect x="264" y="84" width="12" height="12"/><rect x="276" y="84" width="12" height="12"/>
+        <rect x="288" y="84" width="12" height="12"/><rect x="300" y="84" width="12" height="12"/>
+        <rect x="216" y="96" width="12" height="12"/><rect x="228" y="96" width="12" height="12"/>
+        <rect x="240" y="96" width="12" height="12"/><rect x="252" y="96" width="12" height="12"/>
+        <rect x="264" y="96" width="12" height="12"/><rect x="276" y="96" width="12" height="12"/>
+        <rect x="288" y="96" width="12" height="12"/><rect x="300" y="96" width="12" height="12"/>
+        <rect x="228" y="108" width="12" height="12"/><rect x="240" y="108" width="12" height="12"/>
+        <rect x="252" y="108" width="12" height="12"/><rect x="264" y="108" width="12" height="12"/>
+        <rect x="276" y="108" width="12" height="12"/><rect x="288" y="108" width="12" height="12"/>
+        <rect x="300" y="108" width="12" height="12"/>
+        <rect x="240" y="120" width="12" height="12"/><rect x="252" y="120" width="12" height="12"/>
+        <rect x="264" y="120" width="12" height="12"/><rect x="276" y="120" width="12" height="12"/>
+        <rect x="288" y="120" width="12" height="12"/>
+        <rect x="252" y="132" width="12" height="12"/><rect x="264" y="132" width="12" height="12"/>
+        <rect x="276" y="132" width="12" height="12"/>
+        <rect x="264" y="144" width="12" height="12"/><rect x="276" y="144" width="12" height="12"/>
+        <!-- Japan/Islands -->
+        <rect x="312" y="108" width="12" height="12"/>
+        <rect x="312" y="120" width="12" height="12"/><rect x="324" y="120" width="12" height="12"/>
+        <rect x="312" y="132" width="12" height="12"/>
+        <!-- India -->
+        <rect x="264" y="156" width="12" height="12"/><rect x="276" y="156" width="12" height="12"/>
+        <rect x="264" y="168" width="12" height="12"/><rect x="276" y="168" width="12" height="12"/>
+        <rect x="276" y="180" width="12" height="12"/>
+        <!-- Southeast Asia -->
+        <rect x="288" y="144" width="12" height="12"/><rect x="300" y="144" width="12" height="12"/>
+        <rect x="300" y="156" width="12" height="12"/><rect x="312" y="156" width="12" height="12"/>
+        <rect x="300" y="168" width="12" height="12"/>
+        <!-- Australia -->
+        <rect x="288" y="216" width="12" height="12"/><rect x="300" y="216" width="12" height="12"/>
+        <rect x="312" y="216" width="12" height="12"/>
+        <rect x="276" y="228" width="12" height="12"/><rect x="288" y="228" width="12" height="12"/>
+        <rect x="300" y="228" width="12" height="12"/><rect x="312" y="228" width="12" height="12"/>
+        <rect x="324" y="228" width="12" height="12"/>
+        <rect x="276" y="240" width="12" height="12"/><rect x="288" y="240" width="12" height="12"/>
+        <rect x="300" y="240" width="12" height="12"/><rect x="312" y="240" width="12" height="12"/>
+        <rect x="324" y="240" width="12" height="12"/>
+        <rect x="288" y="252" width="12" height="12"/><rect x="300" y="252" width="12" height="12"/>
+        <rect x="312" y="252" width="12" height="12"/>
+        <rect x="300" y="264" width="12" height="12"/>
+      </g>
+      <!-- Ocean highlights -->
+      <g fill="#1a5070" opacity="0.15" clip-path="url(#globe-clip)">
+        <rect x="144" y="132" width="12" height="12"/><rect x="156" y="156" width="12" height="12"/>
+        <rect x="108" y="168" width="12" height="12"/><rect x="168" y="120" width="12" height="12"/>
+        <rect x="240" y="180" width="12" height="12"/><rect x="168" y="252" width="12" height="12"/>
+        <rect x="300" y="180" width="12" height="12"/><rect x="144" y="276" width="12" height="12"/>
+        <rect x="72" y="180" width="12" height="12"/><rect x="336" y="156" width="12" height="12"/>
+      </g>
+      <!-- City lights (night only) -->
+      <g id="earth-lights" opacity="0" clip-path="url(#globe-clip)">
+        <!-- North America cities -->
+        <circle cx="88" cy="108" r="2.5" fill="#ffcc44"/><circle cx="76" cy="96" r="2" fill="#ffaa33"/>
+        <circle cx="100" cy="96" r="1.8" fill="#ffdd55"/><circle cx="112" cy="104" r="2" fill="#ffcc44"/>
+        <circle cx="96" cy="120" r="1.5" fill="#ffaa33"/><circle cx="84" cy="132" r="1.8" fill="#ffdd55"/>
+        <circle cx="108" cy="132" r="2.2" fill="#ffcc44"/><circle cx="72" cy="84" r="1.5" fill="#ffaa33"/>
+        <circle cx="96" cy="144" r="1.5" fill="#ffdd55"/>
+        <!-- Europe cities -->
+        <circle cx="192" cy="84" r="2.5" fill="#ffcc44"/><circle cx="204" cy="96" r="2" fill="#ffdd55"/>
+        <circle cx="180" cy="96" r="2.2" fill="#ffaa33"/><circle cx="216" cy="96" r="1.8" fill="#ffcc44"/>
+        <circle cx="192" cy="108" r="1.8" fill="#ffdd55"/><circle cx="180" cy="84" r="1.5" fill="#ffaa33"/>
+        <!-- Africa cities -->
+        <circle cx="204" cy="156" r="1.8" fill="#ffaa33"/><circle cx="216" cy="168" r="1.5" fill="#ffcc44"/>
+        <circle cx="192" cy="180" r="1.5" fill="#ffdd55"/><circle cx="204" cy="204" r="1.8" fill="#ffaa33"/>
+        <!-- Asia cities -->
+        <circle cx="252" cy="96" r="2.5" fill="#ffcc44"/><circle cx="276" cy="96" r="2.2" fill="#ffdd55"/>
+        <circle cx="288" cy="108" r="2" fill="#ffaa33"/><circle cx="264" cy="120" r="2" fill="#ffcc44"/>
+        <circle cx="240" cy="108" r="1.8" fill="#ffdd55"/><circle cx="300" cy="96" r="1.5" fill="#ffaa33"/>
+        <circle cx="276" cy="84" r="1.5" fill="#ffcc44"/>
+        <!-- Japan -->
+        <circle cx="318" cy="120" r="2.2" fill="#ffdd55"/><circle cx="312" cy="132" r="1.5" fill="#ffcc44"/>
+        <!-- India -->
+        <circle cx="270" cy="160" r="2" fill="#ffcc44"/><circle cx="276" cy="172" r="1.8" fill="#ffdd55"/>
+        <!-- SE Asia -->
+        <circle cx="300" cy="156" r="1.8" fill="#ffaa33"/><circle cx="312" cy="160" r="1.5" fill="#ffcc44"/>
+        <!-- South America cities -->
+        <circle cx="132" cy="204" r="2" fill="#ffcc44"/><circle cx="120" cy="228" r="1.8" fill="#ffdd55"/>
+        <circle cx="108" cy="252" r="1.5" fill="#ffaa33"/><circle cx="132" cy="240" r="1.5" fill="#ffcc44"/>
+        <!-- Australia cities -->
+        <circle cx="300" cy="240" r="2" fill="#ffcc44"/><circle cx="312" cy="228" r="1.8" fill="#ffdd55"/>
+        <circle cx="288" cy="240" r="1.5" fill="#ffaa33"/>
+        <!-- Twinkle animation on select lights -->
+        <circle cx="88" cy="108" r="3.5" fill="#ffcc4400">
+          <animate attributeName="fill" values="#ffcc4400;#ffcc4422;#ffcc4400" dur="3s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="252" cy="96" r="3.5" fill="#ffcc4400">
+          <animate attributeName="fill" values="#ffcc4400;#ffcc4422;#ffcc4400" dur="4s" begin="1s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="192" cy="84" r="3.5" fill="#ffcc4400">
+          <animate attributeName="fill" values="#ffcc4400;#ffcc4422;#ffcc4400" dur="3.5s" begin="0.5s" repeatCount="indefinite"/>
+        </circle>
+      </g>
+      <!-- Atmosphere rim -->
+      <circle id="earth-atm-stroke" cx="200" cy="200" r="152" fill="none" stroke="#4fc3f7" stroke-width="1" opacity="0.06"/>
+      <circle cx="200" cy="200" r="156" fill="url(#atmosphere)"/>
+      <!-- Slow rotation -->
+      <animateTransform attributeName="transform" type="rotate" from="0 200 200" to="15 200 200" dur="60s" repeatCount="indefinite" additive="sum" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1" values="0 200 200;15 200 200;0 200 200"/>
+    </svg>
+    <svg class="conns" id="conns"></svg>
+  </div>
+
+  <!-- SIDE PANEL -->
+  <div class="panel">
+    <div class="tabs">
+      <div class="tab active" id="tab-agents-btn" onclick="setTab('agents',this)">AGENTS</div>
+      <div class="tab" id="tab-log-btn" onclick="setTab('log',this)">LOG <span id="log-badge" class="badge" style="display:none">!</span></div>
+    </div>
+    <div class="pcontent" id="tab-agents"></div>
+    <div class="pcontent" id="tab-log" style="display:none"></div>
+
+    <!-- Chat panel (shown when agent selected) -->
+    <div class="chat-panel" id="chat-panel" style="display:none">
+      <div class="chat-hdr">
+        <span class="chat-hdr-icon" id="chat-icon">👤</span>
+        <span class="chat-hdr-name" id="chat-name" style="color:var(--accent)">AGENT</span>
+        <span class="chat-hdr-close" onclick="closeChat()">✕</span>
+      </div>
+      <div class="chat-messages" id="chat-messages"></div>
+      <div class="chat-input-row">
+        <input class="chat-input" id="chat-input"
+               placeholder="Message agent..." onkeydown="if(e.key==='Enter')sendMsg()" />
+        <button class="chat-send" id="chat-send-btn" onclick="sendMsg()">SEND ▶</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="ticker"><div class="ticker-track" id="ticker"></div></div>
+
+<script>
+// ════════════════════════════════════════════════════════
+// CONFIG & STATE
+// ════════════════════════════════════════════════════════
+const ROLES = {
+  lead:      {label:'LEAD', emoji:'👑',color:'#ffffff',skin:'#e8c39e',hair:'#222',body:'#3a3a4a',legs:'#1a1a2a',female:false},
+  pm:        {label:'PM',   emoji:'👩‍💼',color:'#ff6eb4',skin:'#f4a261',hair:'#8B4513',body:'#c0396e',legs:'#2d2250',female:true},
+  architect: {label:'ARCH', emoji:'👨‍💻',color:'#6ec6ff',skin:'#deb887',hair:'#1a1a1a',body:'#2d5a8e',legs:'#1a2040',female:false},
+  dev:       {label:'DEV',  emoji:'🧑‍💻',color:'#6eff9e',skin:'#c68642',hair:'#3d1a00',body:'#1a4a2d',legs:'#1a2a1a',female:false},
+  qa:        {label:'QA',   emoji:'👩‍🔬',color:'#ffdd6e',skin:'#f5cba7',hair:'#8b6914',body:'#6b5100',legs:'#2a2010',female:true},
+  security:  {label:'SEC',  emoji:'👨‍🔒',color:'#ff8c6e',skin:'#cd8b76',hair:'#2d2d2d',body:'#5c2d00',legs:'#1a0d00',female:false},
+};
+const CENTER_POS = {left:'42%',top:'32%'};
+const SURROUND_POSITIONS = [
+  {left:'10%',top:'14%'},{left:'42%',top:'6%'},{left:'72%',top:'14%'},
+  {left:'14%',top:'58%'},{left:'72%',top:'58%'},
+  {left:'42%',top:'66%'},{left:'28%',top:'38%'},{left:'60%',top:'38%'},
+];
+const STATUS_ANIM = {working:'anim-working',thinking:'anim-thinking',idle:'anim-idle',blocked:'anim-blocked',reviewing:'anim-reviewing'};
+
+let agents = [];
+let logs = [];
+let chats = {}; // agentId → [{from,text,time}]
+let unread = {}; // agentId → count
+let selectedAgent = null;
+let ws = null;
+let bridgeUrl = 'ws://localhost:3456';
+
+// ════════════════════════════════════════════════════════
+// WEBSOCKET
+// ════════════════════════════════════════════════════════
+function connectWS() {
+  if (ws) { try { ws.close(); } catch {} }
+  bridgeUrl = document.getElementById('bridge-url').value.trim() || 'ws://localhost:3456';
+  setStatus('connecting…', '');
+
+  ws = new WebSocket(bridgeUrl);
+
+  ws.onopen = () => {
+    setStatus('CONNECTED', 'connected');
+    addLog('system', 'Bridge connected');
+    fetchTeams();
+    // ping keepalive
+    setInterval(() => ws && ws.readyState===1 && ws.send(JSON.stringify({type:'ping'})), 20000);
+  };
+
+  ws.onmessage = e => {
+    try {
+      const { event, data } = JSON.parse(e.data);
+      if (event === 'state_update') {
+        applyState(data);
+      } else if (event === 'agent_reply') {
+        receiveReply(data.agentId, data.reply);
+      } else if (event === 'message_sent') {
+        addLog(data.agentId, `message sent: "${data.message.slice(0,40)}"`);
+      }
+    } catch {}
+  };
+
+  ws.onerror = () => setStatus('ERROR', 'error');
+  ws.onclose = () => {
+    setStatus('DISCONNECTED', '');
+    setTimeout(connectWS, 5000); // auto-reconnect
+  };
+}
+
+function setStatus(label, cls) {
+  const dot = document.getElementById('ws-dot');
+  const lbl = document.getElementById('ws-label');
+  dot.className = 'ws-dot' + (cls ? ' ' + cls : '');
+  lbl.textContent = label;
+  document.getElementById('bridge-status').textContent = label === 'CONNECTED'
+    ? `↔ ${bridgeUrl}` : '';
+}
+
+// ════════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════════
+function applyState(data) {
+  const arr = Array.isArray(data) ? data : [data];
+  arr.forEach(u => {
+    const idx = agents.findIndex(a => a.id === u.id);
+    if (idx >= 0) {
+      const old = agents[idx];
+      if (old.status !== u.status || old.task !== u.task) {
+        addLog(u.id, `${u.status}: ${u.task || '…'}`);
+        spawnParticle(u.id);
+      }
+      agents[idx] = { ...old, ...u };
+    } else {
+      agents.push(u);
+      addLog(u.id, `joined: ${u.task || 'online'}`);
+    }
+  });
+  renderAll();
+}
+
+// ════════════════════════════════════════════════════════
+// SCENE SVG — everything drawn in one SVG for precise layering
+// Layout (Y coords, SVG height = 110):
+//   0-20:   ZZZ / speech area (overflow:visible)
+//  20-28:   hair
+//  28-44:   head
+//  44-58:   torso (z2, behind macbook)
+//  58-68:   legs  (z2, behind macbook)
+//  50-92:   MacBook lid (z3, in front of torso)
+//  92-100:  desk surface (z4)
+// 100-110:  desk front/legs (z4)
+//   arms: z5, reach from torso over keyboard
+// ════════════════════════════════════════════════════════
+function sceneSVG(agent) {
+  const r = ROLES[agent.role] || ROLES.dev;
+  const isIdle = (agent.status || 'idle') === 'idle';
+  const isLead = agent.role === 'lead';
+  const isLeadCoffee = isLead && isIdle;
+  const anim = isLeadCoffee ? 'anim-thinking' : (STATUS_ANIM[agent.status] || 'anim-idle');
+  const c = r.color;
+
+  // ── Character colors
+  const skin = r.skin;
+  const hair = r.hair;
+  const body = r.body;
+  const legs = r.legs;
+
+  // ── Head position (center X=40, head top Y=26)
+  const hx = 40, hy = 26; // head top-left (head is 18w x 16h, centered at 40)
+  const headL = hx - 9;   // 31
+  const headT = hy;        // 26
+
+  // ── Hair
+  const hairL = hx - 11;  // 29
+  const hairT = hy - 7;   // 19
+
+  // ── Torso (behind macbook lid)
+  const torsoL = hx - 11; // 29
+  const torsoT = hy + 16; // 42
+
+  // ── MacBook: lid top Y=48, base bottom Y=95
+  // Lid: trapezoid (perspective open laptop facing viewer)
+  // Base: rect keyboard area
+
+  // ── Desk: Y=96 to Y=108
+
+  // ── Arms: from shoulders (torsoT+2) angling down to keyboard (Y~88)
+
+  const eyeY = hy + 5;
+  const eyeColor = isIdle ? hair + '55' : hair + 'bb';
+
+  // Thought bubble or ZZZ
+  const zzzHTML = isLeadCoffee ? `
+    <!-- thought bubbles rising from head -->
+    <circle cx="60" cy="18" r="2" fill="#aabbcc" opacity="0">
+      <animate attributeName="opacity" values="0;0.5;0.5;0" dur="4s" begin="0s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="64" cy="11" r="3" fill="#aabbcc" opacity="0">
+      <animate attributeName="opacity" values="0;0.5;0.5;0" dur="4s" begin="0.5s" repeatCount="indefinite"/>
+    </circle>
+    <!-- main thought cloud -->
+    <g opacity="0">
+      <animate attributeName="opacity" values="0;0.6;0.6;0" dur="4s" begin="1s" repeatCount="indefinite"/>
+      <ellipse cx="70" cy="0" rx="10" ry="7" fill="#8899bb33" stroke="#8899bb55" stroke-width="0.8"/>
+      <text x="64" y="3" font-family="monospace" font-size="6" fill="#aabbdd">. . .</text>
+    </g>
+    <!-- coffee steam from mug -->
+    <path d="M18,42 Q16,36 20,32" stroke="#aabbcc66" stroke-width="0.8" fill="none" opacity="0">
+      <animate attributeName="opacity" values="0;0.4;0" dur="3s" begin="0s" repeatCount="indefinite"/>
+    </path>
+    <path d="M22,43 Q24,37 20,33" stroke="#8899bb55" stroke-width="0.6" fill="none" opacity="0">
+      <animate attributeName="opacity" values="0;0.3;0" dur="3.5s" begin="0.8s" repeatCount="indefinite"/>
+    </path>`
+  : isIdle ? `
+    <text x="54" y="14" font-family="monospace" font-size="7" fill="#7788bb" opacity="0">z
+      <animate attributeName="opacity" values="0;0.9;0" dur="2.4s" begin="0s" repeatCount="indefinite"/>
+      <animate attributeName="y"       values="14;4;-6"  dur="2.4s" begin="0s" repeatCount="indefinite"/>
+    </text>
+    <text x="60" y="10" font-family="monospace" font-size="9" fill="#8899cc" opacity="0">z
+      <animate attributeName="opacity" values="0;0.9;0" dur="2.4s" begin="0.8s" repeatCount="indefinite"/>
+      <animate attributeName="y"       values="10;0;-10" dur="2.4s" begin="0.8s" repeatCount="indefinite"/>
+    </text>
+    <text x="67" y="6" font-family="monospace" font-size="12" fill="#99aadd" opacity="0">Z
+      <animate attributeName="opacity" values="0;0.9;0" dur="2.4s" begin="1.6s" repeatCount="indefinite"/>
+      <animate attributeName="y"       values="6;-8;-22" dur="2.4s" begin="1.6s" repeatCount="indefinite"/>
+    </text>` : '';
+
+  // Hair strands (long for female)
+  const hairExtra = r.female
+    ? `<rect x="${hx+7}" y="${hairT+6}" width="5" height="14" rx="2" fill="${hair}"/>` : '';
+
+  // Sleep head tilt via transform on the head group (lead stays upright)
+  const headGroupAttr = (isIdle && !isLeadCoffee)
+    ? `transform="rotate(12, ${hx}, ${hy+16})"` : '';
+
+  // Eye shape: open = small rect, closed = thin line (lead keeps eyes open + relaxed smile)
+  const eyes = (isIdle && !isLeadCoffee)
+    ? `<rect x="${headL+3}" y="${eyeY}" width="4" height="1" rx="1" fill="${eyeColor}"/>
+       <rect x="${headL+10}" y="${eyeY}" width="4" height="1" rx="1" fill="${eyeColor}"/>`
+    : isLeadCoffee
+    ? `<rect x="${headL+3}" y="${eyeY}" width="4" height="2.5" rx="1" fill="${hair}99"/>
+       <rect x="${headL+10}" y="${eyeY}" width="4" height="2.5" rx="1" fill="${hair}99"/>`
+    : `<rect x="${headL+3}" y="${eyeY}" width="4" height="3" rx="1" fill="${eyeColor}"/>
+       <rect x="${headL+10}" y="${eyeY}" width="4" height="3" rx="1" fill="${eyeColor}"/>`;
+
+  // MacBook screen content
+  const screenContent = isLeadCoffee
+    ? `<rect x="18" y="60" width="14" height="2" rx="1" fill="${c}33"/>
+       <rect x="18" y="64" width="20" height="2" rx="1" fill="${c}22"/>
+       <rect x="18" y="68" width="10" height="2" rx="1" fill="${c}18"/>
+       <circle cx="50" cy="68" r="3" fill="${c}22">
+         <animate attributeName="opacity" values="0.15;0.35;0.15" dur="4s" repeatCount="indefinite"/>
+       </circle>`
+    : isIdle
+    ? `<circle cx="40" cy="67" r="3" fill="${c}22">
+        <animate attributeName="r" values="2;4;2" dur="3s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="0.2;0.6;0.2" dur="3s" repeatCount="indefinite"/>
+       </circle>`
+    : `<rect x="18" y="60" width="16" height="2" rx="1" fill="${c}55"/>
+       <rect x="18" y="64" width="22" height="2" rx="1" fill="${c}33"/>
+       <rect x="18" y="68" width="12" height="2" rx="1" fill="${c}30"/>
+       <rect x="18" y="72" width="18" height="2" rx="1" fill="${c}20"/>
+       <rect x="18" y="60" width="2" height="2" fill="${c}dd">
+         <animate attributeName="opacity" values="1;0;1" dur="1s" repeatCount="indefinite"/>
+       </rect>`;
+
+  return `<svg class="scene-svg ${anim}" width="80" height="110" viewBox="0 0 80 110" xmlns="http://www.w3.org/2000/svg" overflow="visible">
+
+  <!-- ── ZZZ (sleep only) ── -->
+  ${zzzHTML}
+
+  <!-- ── CHAIR BACK (z=1) ── -->
+  <rect x="22" y="40" width="36" height="4" rx="2" fill="#3a2c1e"/>
+  <rect x="26" y="44" width="4"  height="20" rx="2" fill="#2a1f14"/>
+  <rect x="50" y="44" width="4"  height="20" rx="2" fill="#2a1f14"/>
+
+  <!-- ── TORSO behind MacBook lid (z=2) ── -->
+  <rect x="${torsoL}" y="${torsoT}" width="22" height="14" rx="2" fill="${body}"/>
+  <!-- shirt detail -->
+  <rect x="${torsoL+8}" y="${torsoT+3}" width="4" height="7" rx="1" fill="#ffffff12"/>
+
+  <!-- ── LEGS behind desk (z=2) ── -->
+  <rect x="${torsoL+1}" y="${torsoT+14}" width="8"  height="12" rx="2" fill="${legs}"/>
+  <rect x="${torsoL+12}" y="${torsoT+14}" width="8" height="12" rx="2" fill="${legs}"/>
+
+  <!-- ── MACBOOK LID (open, perspective trapezoid, z=3) ── -->
+  <!-- Lid outer silver frame -->
+  <polygon points="10,50 70,50 66,82 14,82" fill="#2c2c30"/>
+  <!-- Bezel -->
+  <polygon points="12,52 68,52 64,80 16,80" fill="#111116"/>
+  <!-- Screen -->
+  <polygon points="14,54 66,54 62,78 18,78" fill="${isIdle && !isLeadCoffee ? '#070910' : '#0c1420'}"
+           style="${isIdle && !isLeadCoffee ? '' : 'filter:drop-shadow(0 0 4px ' + c + (isLeadCoffee ? '33' : '66') + ')'}"/>
+  ${screenContent}
+  <!-- Hinge -->
+  <rect x="10" y="81" width="60" height="3" rx="0" fill="#1a1a1c"/>
+
+  <!-- ── MACBOOK BASE / KEYBOARD (z=3) ── -->
+  <rect x="8"  y="84" width="64" height="10" rx="2" fill="#3c3c40"/>
+  <!-- key row 1 -->
+  <rect x="12" y="85" width="4" height="3" rx="1" fill="#ffffff14"/>
+  <rect x="18" y="85" width="4" height="3" rx="1" fill="#ffffff14"/>
+  <rect x="24" y="85" width="4" height="3" rx="1" fill="#ffffff14"/>
+  <rect x="30" y="85" width="4" height="3" rx="1" fill="#ffffff14"/>
+  <rect x="36" y="85" width="4" height="3" rx="1" fill="#ffffff14"/>
+  <rect x="42" y="85" width="4" height="3" rx="1" fill="#ffffff14"/>
+  <rect x="48" y="85" width="4" height="3" rx="1" fill="#ffffff14"/>
+  <rect x="54" y="85" width="4" height="3" rx="1" fill="#ffffff14"/>
+  <rect x="60" y="85" width="6" height="3" rx="1" fill="#ffffff14"/>
+  <!-- spacebar -->
+  <rect x="24" y="89" width="28" height="2" rx="1" fill="#ffffff10"/>
+  <!-- trackpad -->
+  <rect x="28" y="92" width="20" height="1" rx="1" fill="#ffffff0c"/>
+  <!-- feet -->
+  <rect x="9"  y="93" width="6" height="2" rx="1" fill="#1a1a1c"/>
+  <rect x="65" y="93" width="6" height="2" rx="1" fill="#1a1a1c"/>
+
+  <!-- ── DESK SURFACE (z=4, covers legs) ── -->
+  <rect x="0"  y="95" width="80" height="10" rx="2" fill="#5c3d2e"/>
+  <rect x="0" y="103" width="80" height="6"  rx="1" fill="#3d2b1f"/>
+  <!-- desk highlight edge -->
+  <rect x="0" y="95" width="80" height="2" rx="1" fill="#7a5540"/>
+
+  <!-- ── ARMS over keyboard (z=5) ── -->
+  ${isLeadCoffee ? `
+  <g class="agent-arms">
+    <!-- left arm raised holding coffee near face -->
+    <rect x="14" y="${torsoT}" width="7" height="16" rx="3"
+          fill="${body}" transform="rotate(-40,17,${torsoT})"/>
+    <!-- left hand gripping mug -->
+    <rect x="13" y="44" width="7" height="5" rx="2" fill="${skin}"/>
+    <!-- coffee mug (near chin) -->
+    <rect x="11" y="44" width="12" height="10" rx="2" fill="#d4a574"/>
+    <rect x="11" y="44" width="12" height="2" rx="1" fill="#e8c39e"/>
+    <!-- mug handle -->
+    <rect x="22" y="47" width="3" height="5" rx="1.5" fill="#d4a574"/>
+    <rect x="23" y="48" width="2" height="3" rx="1" fill="#0c1420"/>
+    <!-- coffee liquid -->
+    <rect x="12" y="46" width="10" height="6" rx="1" fill="#4a2c0a"/>
+    <!-- right arm on desk relaxed -->
+    <rect x="55" y="${torsoT+2}" width="7" height="28" rx="3"
+          fill="${body}" transform="rotate(15,59,${torsoT+2})"/>
+    <rect x="57" y="86" width="8" height="5" rx="2" fill="${skin}"/>
+  </g>` : `
+  <g class="agent-arms">
+    <!-- left arm from shoulder down to keyboard -->
+    <rect x="18" y="${torsoT+2}" width="7" height="28" rx="3"
+          fill="${body}" transform="rotate(-15,21,${torsoT+2})"/>
+    <!-- right arm -->
+    <rect x="55" y="${torsoT+2}" width="7" height="28" rx="3"
+          fill="${body}" transform="rotate(15,59,${torsoT+2})"/>
+    <!-- hands on keyboard -->
+    <rect x="15" y="86" width="8" height="5" rx="2" fill="${skin}"/>
+    <rect x="57" y="86" width="8" height="5" rx="2" fill="${skin}"/>
+  </g>`}
+
+  <!-- ── HEAD group (z=6, above everything) ── -->
+  <g class="agent-head" ${headGroupAttr}>
+    <!-- Hair -->
+    <rect x="${hairL}" y="${hairT}" width="22" height="9" rx="3" fill="${hair}"/>
+    ${hairExtra}
+    <!-- Head -->
+    <rect x="${headL}" y="${headT}" width="18" height="16" rx="2" fill="${skin}"/>
+    <!-- Eyes -->
+    ${eyes}
+    <!-- Mouth -->
+    ${isLeadCoffee
+      ? `<path d="M${headL+5},${hy+11} Q${headL+9},${hy+14} ${headL+13},${hy+11}" stroke="${hair}55" stroke-width="1.5" fill="none"/>`
+      : `<rect x="${headL+4}" y="${hy+12}" width="10" height="2" rx="1" fill="${hair}44"/>`}
+  </g>
+
+</svg>`;
+}
+
+// ════════════════════════════════════════════════════════
+// RENDER STATION
+// ════════════════════════════════════════════════════════
+function stationHTML(agent, pos) {
+  const r = ROLES[agent.role] || ROLES.dev;
+  const prog = agent.progress || 0;
+  const unreadCount = unread[agent.id] || 0;
+
+  return `
+    <div class="station${selectedAgent===agent.id?' selected':''}"
+         id="st-${agent.id}" data-role="${agent.role}" data-id="${agent.id}"
+         style="left:${pos.left};top:${pos.top};${selectedAgent===agent.id?`filter:drop-shadow(0 0 14px ${r.color})`:''}"
+         onclick="openChat('${agent.id}')">
+      ${unreadCount ? `<div class="unread-badge">${unreadCount}</div>` : ''}
+      <div class="speech" style="color:${r.color}">
+        ${agent.task||'…'}<span class="cur" style="color:${r.color}"></span>
+      </div>
+      ${sceneSVG(agent)}
+      <div class="prog-wrap">
+        <div class="prog-bar" style="width:${prog}%;background:${r.color}55;box-shadow:0 0 4px ${r.color}"></div>
+      </div>
+      <div class="nametag" style="color:${r.color};border-color:${r.color}44">${agent.name||agent.id}</div>
+      <div class="sbadge ${agent.status||'idle'}">${(agent.status||'idle').toUpperCase()}</div>
+    </div>`;
+}
+
+// ════════════════════════════════════════════════════════
+// RENDER ALL
+// ════════════════════════════════════════════════════════
+const COMPACT_THRESHOLD = 500; // px — office width below this switches to stacked
+
+function isCompact() {
+  const office = document.getElementById('office');
+  return office.clientWidth < COMPACT_THRESHOLD;
+}
+
+function sizeEarth() {
+  const office = document.getElementById('office');
+  const earth = office.querySelector('.earth-bg');
+  if (!earth || agents.length === 0) return;
+
+  const or = office.getBoundingClientRect();
+  const stations = office.querySelectorAll('.station');
+  if (stations.length === 0) return;
+
+  // Find bounding box of all agent stations
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  stations.forEach(el => {
+    const r = el.getBoundingClientRect();
+    const x1 = r.left - or.left, y1 = r.top - or.top;
+    const x2 = x1 + r.width, y2 = y1 + r.height;
+    if (x1 < minX) minX = x1;
+    if (y1 < minY) minY = y1;
+    if (x2 > maxX) maxX = x2;
+    if (y2 > maxY) maxY = y2;
+  });
+
+  // Center on lead if present, otherwise center of bounding box
+  const leadEl = document.getElementById(`st-${(agents.find(a=>a.role==='lead')||{}).id}`);
+  let cx, cy;
+  if (leadEl) {
+    const lr = leadEl.getBoundingClientRect();
+    cx = lr.left - or.left + lr.width / 2;
+    cy = lr.top - or.top + lr.height / 2;
+  } else {
+    cx = (minX + maxX) / 2;
+    cy = (minY + maxY) / 2;
+  }
+
+  // Diameter = max distance from center to any edge of bounding box, ×2, +padding
+  const padding = 80;
+  const dx = Math.max(Math.abs(maxX - cx), Math.abs(minX - cx));
+  const dy = Math.max(Math.abs(maxY - cy), Math.abs(minY - cy));
+  const diameter = Math.max(dx, dy) * 2 + padding * 2;
+
+  earth.style.width = diameter + 'px';
+  earth.style.height = diameter + 'px';
+  earth.style.left = (cx - diameter / 2) + 'px';
+  earth.style.top = (cy - diameter / 2) + 'px';
+}
+
+function renderAll() {
+  const office = document.getElementById('office');
+  office.querySelectorAll('.station').forEach(e => e.remove());
+  const compact = isCompact();
+  office.classList.toggle('compact', compact);
+
+  // Separate lead from others
+  const lead = agents.find(a => a.role === 'lead');
+  const others = agents.filter(a => a.role !== 'lead');
+
+  // Dummy pos for compact mode (position:static ignores left/top)
+  const noPos = {left:'0',top:'0'};
+
+  if (lead) {
+    office.insertAdjacentHTML('beforeend', stationHTML(lead, compact ? noPos : CENTER_POS));
+  }
+  others.forEach((a, i) => {
+    const pos = compact ? noPos : (SURROUND_POSITIONS[i] || {left:`${15+i*14}%`,top:'40%'});
+    office.insertAdjacentHTML('beforeend', stationHTML(a, pos));
+  });
+  if (!compact) {
+    setTimeout(drawConns, 80);
+    setTimeout(sizeEarth, 100);
+  }
+  renderAgentPanel();
+  renderTicker();
+  document.getElementById('acnt').textContent = `${agents.length} AGENTS`;
+}
+
+// ════════════════════════════════════════════════════════
+// CONNECTIONS
+// ════════════════════════════════════════════════════════
+function drawConns() {
+  const svg = document.getElementById('conns');
+  const office = document.getElementById('office');
+  const or = office.getBoundingClientRect();
+  svg.innerHTML = '';
+
+  const pts = agents.map(a => {
+    const el = document.getElementById(`st-${a.id}`);
+    if (!el) return null;
+    const er = el.getBoundingClientRect();
+    return {x: er.left-or.left+er.width/2, y: er.top-or.top+30, idle: a.status==='idle'};
+  });
+
+  agents.forEach((a, i) => {
+    if (a.status==='idle') return;
+    agents.forEach((b, j) => {
+      if (j<=i || b.status==='idle') return;
+      const p1=pts[i], p2=pts[j];
+      if (!p1||!p2) return;
+      const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1',p1.x);line.setAttribute('y1',p1.y);
+      line.setAttribute('x2',p2.x);line.setAttribute('y2',p2.y);
+      line.setAttribute('stroke','#4fc3f712');
+      line.setAttribute('stroke-width','1');
+      line.setAttribute('stroke-dasharray','4,4');
+      svg.appendChild(line);
+      const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      c.setAttribute('r','2.5');c.setAttribute('fill','#4fc3f745');
+      const am = document.createElementNS('http://www.w3.org/2000/svg','animateMotion');
+      am.setAttribute('dur',`${2+Math.random()*2}s`);am.setAttribute('repeatCount','indefinite');
+      am.setAttribute('path',`M${p1.x},${p1.y} L${p2.x},${p2.y}`);
+      c.appendChild(am);svg.appendChild(c);
+    });
+  });
+}
+
+// ════════════════════════════════════════════════════════
+// AGENT PANEL
+// ════════════════════════════════════════════════════════
+function renderAgentPanel() {
+  document.getElementById('tab-agents').innerHTML = agents.map(a => {
+    const r = ROLES[a.role]||ROLES.dev;
+    const uc = unread[a.id]||0;
+    return `
+      <div class="acard${selectedAgent===a.id?' sel':''}"
+           style="${selectedAgent===a.id?`border-left-color:${r.color}`:''}"
+           onclick="openChat('${a.id}')">
+        <div class="acard-hdr">
+          <div class="role-icon" style="background:${r.color}18;border:1px solid ${r.color}35">${r.emoji}</div>
+          <div>
+            <div class="aname" style="color:${r.color}">${a.name||a.id}${uc?` <span style="color:#ff5252;font-size:8px">[${uc}]</span>`:''}</div>
+            <div style="font-size:11px;color:#334;margin-top:2px">${r.label}</div>
+          </div>
+          <div class="sdot ${a.status||'idle'}" style="margin-left:auto"></div>
+        </div>
+        <div class="atask"><span>${(a.status||'idle').toUpperCase()}</span> — ${a.task||'standby'}</div>
+        <div class="ameta">
+          ${a.model?`<span class="chip">${shortModel(a.model)}</span>`:''}
+          ${a.tokens?`<span class="chip">${fmtTokens(a.tokens)}</span>`:''}
+          ${a.contextUsed?`<span class="chip">ctx ${fmtTokens(a.contextUsed)}/${fmtTokens(a.contextMax||200000)}</span>`:''}
+        </div>
+        <div class="aprog"><div class="aprog-bar" style="width:${ctxPct(a)}%;background:${r.color}55;box-shadow:0 0 4px ${r.color}33"></div></div>
+      </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════════════════════
+// CHAT
+// ════════════════════════════════════════════════════════
+function openChat(agentId) {
+  selectedAgent = agentId;
+  unread[agentId] = 0;
+  const agent = agents.find(a => a.id === agentId);
+  if (!agent) return;
+  const r = ROLES[agent.role] || ROLES.dev;
+
+  document.getElementById('chat-panel').style.display = 'flex';
+  document.getElementById('chat-panel').style.flexDirection = 'column';
+  document.getElementById('chat-icon').textContent = r.emoji;
+  document.getElementById('chat-name').textContent = `${agent.name||agentId} (${r.label})`;
+  document.getElementById('chat-name').style.color = r.color;
+  document.getElementById('chat-input').placeholder = `Message ${agent.name||agentId}…`;
+
+  renderChatMessages(agentId);
+  renderAll();
+  document.getElementById('chat-input').focus();
+}
+
+function closeChat() {
+  selectedAgent = null;
+  document.getElementById('chat-panel').style.display = 'none';
+  renderAll();
+}
+
+function renderChatMessages(agentId) {
+  const msgs = chats[agentId] || [];
+  const el = document.getElementById('chat-messages');
+  el.innerHTML = msgs.length === 0
+    ? `<div style="color:#334;font-size:16px;text-align:center;padding:10px">No messages yet. Say something!</div>`
+    : msgs.map(m => `
+        <div class="msg ${m.from}">
+          <div>${m.text}</div>
+          <div class="msg-meta">${m.time}</div>
+        </div>`).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+async function sendMsg() {
+  const input = document.getElementById('chat-input');
+  const msg = input.value.trim();
+  if (!msg || !selectedAgent) return;
+
+  const agent = agents.find(a => a.id === selectedAgent);
+  if (!agent) return;
+
+  input.value = '';
+  const btn = document.getElementById('chat-send-btn');
+  btn.disabled = true;
+
+  // Add to local chat
+  if (!chats[selectedAgent]) chats[selectedAgent] = [];
+  chats[selectedAgent].push({ from:'user', text:msg, time:now() });
+  renderChatMessages(selectedAgent);
+
+  // Show typing indicator
+  const msgs = document.getElementById('chat-messages');
+  const typing = document.createElement('div');
+  typing.className = 'typing-msg';
+  typing.textContent = '···';
+  msgs.appendChild(typing);
+  msgs.scrollTop = msgs.scrollHeight;
+
+  try {
+    const httpUrl = bridgeUrl.replace('ws://','http://').replace('wss://','https://');
+    const res = await fetch(`${httpUrl}/message`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ agentId: selectedAgent, message: msg, from:'user' })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    addLog(selectedAgent, `→ "${msg.slice(0,40)}"`);
+  } catch (e) {
+    // Fallback: if bridge not running, show demo reply
+    setTimeout(() => {
+      typing.remove();
+      demoReply(selectedAgent, msg);
+      btn.disabled = false;
+    }, 1500);
+    return;
+  }
+
+  // Wait a moment then remove typing (real reply comes via WS)
+  setTimeout(() => { typing.remove(); btn.disabled = false; }, 800);
+}
+
+function receiveReply(agentId, reply) {
+  if (!chats[agentId]) chats[agentId] = [];
+  chats[agentId].push({ from:'agent', text:reply, time:now() });
+
+  if (selectedAgent === agentId) {
+    renderChatMessages(agentId);
+  } else {
+    unread[agentId] = (unread[agentId]||0) + 1;
+  }
+  renderAgentPanel();
+  spawnParticle(agentId);
+}
+
+// Demo replies when bridge not connected
+function demoReply(agentId, userMsg) {
+  const agent = agents.find(a => a.id === agentId);
+  if (!agent) return;
+  const r = ROLES[agent.role] || ROLES.dev;
+
+  const replies = {
+    pm:       [`Got it! I'll add "${userMsg.slice(0,30)}" to the backlog.`, `Updating the sprint plan now.`, `I'll sync with the team on that.`],
+    architect:[`Interesting. Let me think about the architectural implications.`, `I'd suggest a microservice approach here.`, `Drawing up an ADR for that now.`],
+    dev:      [`On it. I'll push a branch shortly.`, `Found the issue — fixing it now.`, `Writing tests for this first, then implementing.`],
+    qa:       [`I'll add test cases for that scenario.`, `Running the regression suite now.`, `Found 2 edge cases to cover.`],
+    security: [`Scanning for vulnerabilities related to that.`, `I'll review the auth flow for this.`, `No CVEs found, but I'm auditing further.`],
+  };
+  const pool = replies[agent.role] || [`Processing: ${userMsg.slice(0,30)}`];
+  const reply = pool[Math.floor(Math.random()*pool.length)];
+
+  receiveReply(agentId, reply);
+  // Also update their status
+  const newStatus = ['working','thinking','reviewing'][Math.floor(Math.random()*3)];
+  const idx = agents.findIndex(a=>a.id===agentId);
+  if (idx>=0) { agents[idx].status = newStatus; renderAll(); }
+}
+
+// ════════════════════════════════════════════════════════
+// LOGS
+// ════════════════════════════════════════════════════════
+function addLog(agentId, message) {
+  const agent = agents.find(a=>a.id===agentId);
+  const r = agent ? (ROLES[agent.role]||ROLES.dev) : {color:'#4fc3f7',emoji:'⚙️',label:'SYS'};
+  const name = agent?.name || agentId;
+  logs.unshift({time:now(), name, color:r.color, emoji:r.emoji, message});
+  if (logs.length>100) logs.pop();
+
+  if (document.getElementById('tab-log').style.display!=='') {
+    const badge = document.getElementById('log-badge');
+    badge.style.display='';
+  }
+  if (document.getElementById('tab-log').style.display==='') renderLogPanel();
+}
+
+function renderLogPanel() {
+  document.getElementById('tab-log').innerHTML = logs.map(l =>
+    `<div class="log-entry">
+      <span class="log-time">${l.time}</span>
+      <span class="log-text">
+        <span class="log-tag" style="background:${l.color}18;color:${l.color}">${l.name}</span>
+        ${l.message}
+      </span>
+    </div>`
+  ).join('');
+}
+
+// ════════════════════════════════════════════════════════
+// TICKER
+// ════════════════════════════════════════════════════════
+function renderTicker() {
+  const items = agents.map(a => {
+    const r = ROLES[a.role]||ROLES.dev;
+    return `<span class="ti">${r.emoji} <span style="color:${r.color}">${a.name||a.id}</span> → <span class="hi">${(a.status||'idle').toUpperCase()}</span></span>`;
+  }).join(' · ');
+  const t = document.getElementById('ticker');
+  t.innerHTML = (items+' · '+items) || '…';
+}
+
+// ════════════════════════════════════════════════════════
+// PARTICLES
+// ════════════════════════════════════════════════════════
+function spawnParticle(agentId) {
+  const el = document.getElementById(`st-${agentId}`);
+  if (!el) return;
+  const office = document.getElementById('office');
+  const sr=el.getBoundingClientRect(), or=office.getBoundingClientRect();
+  const emojis=['⚡','💡','🔥','✨','🚀','💻','🛠️','🔐','📋','💬'];
+  const p = document.createElement('div');
+  p.className='particle';
+  p.textContent=emojis[Math.floor(Math.random()*emojis.length)];
+  p.style.left=(sr.left-or.left+sr.width/2)+'px';
+  p.style.top=(sr.top-or.top)+'px';
+  office.appendChild(p);
+  setTimeout(()=>p.remove(),2000);
+}
+
+// ════════════════════════════════════════════════════════
+// TABS
+// ════════════════════════════════════════════════════════
+function setTab(name, el) {
+  document.getElementById('tab-agents').style.display = name==='agents'?'':'none';
+  document.getElementById('tab-log').style.display = name==='log'?'':'none';
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  if (name==='log') {
+    document.getElementById('log-badge').style.display='none';
+    renderLogPanel();
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// UTILS
+// ════════════════════════════════════════════════════════
+function now() {
+  const d=new Date();
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+}
+
+function shortModel(m) {
+  if (!m) return '';
+  if (m.includes('opus')) return 'opus-4.6';
+  if (m.includes('sonnet')) return 'sonnet-4.6';
+  if (m.includes('haiku')) return 'haiku-4.5';
+  return m.replace('claude-','').slice(0,12);
+}
+
+function fmtTokens(n) {
+  if (!n) return '0';
+  if (n >= 1000000) return (n/1000000).toFixed(1) + 'M';
+  if (n >= 1000) return (n/1000).toFixed(0) + 'K';
+  return String(n);
+}
+
+function ctxPct(a) {
+  if (!a.contextUsed || !a.contextMax) return 0;
+  return Math.min(100, Math.round(a.contextUsed / a.contextMax * 100));
+}
+
+function updateClock() {
+  document.getElementById('clock').textContent = now();
+}
+
+// Fix enter key in chat
+document.getElementById('chat-input').addEventListener('keydown', e => {
+  if (e.key==='Enter') sendMsg();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key==='Escape') closeChat();
+});
+
+window.addEventListener('resize', drawConns);
+
+// ════════════════════════════════════════════════════════
+// TEAMS
+// ════════════════════════════════════════════════════════
+async function fetchTeams() {
+  try {
+    const httpUrl = bridgeUrl.replace('ws://','http://').replace('wss://','https://');
+    const res = await fetch(`${httpUrl}/teams`);
+    if (!res.ok) return;
+    const teams = await res.json();
+    const sel = document.getElementById('team-select');
+    sel.innerHTML = '<option value="">— select team —</option>';
+    teams.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.name;
+      opt.textContent = `${t.name} (${t.memberCount})`;
+      sel.appendChild(opt);
+    });
+    addLog('system', `Found ${teams.length} team(s)`);
+  } catch {}
+}
+
+async function selectTeam(teamName) {
+  if (!teamName) return;
+  try {
+    const httpUrl = bridgeUrl.replace('ws://','http://').replace('wss://','https://');
+    const res = await fetch(`${httpUrl}/scan`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ team: teamName })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    addLog('system', `Scanning team: ${teamName}`);
+    // Clear local state — new state will arrive via WebSocket
+    agents = [];
+    renderAll();
+  } catch (e) {
+    addLog('system', `Failed to select team: ${e.message}`);
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// BOOT — start empty, agents come from bridge via WebSocket
+// ════════════════════════════════════════════════════════
+agents = [];
+renderAll();
+setInterval(updateClock, 1000);
+updateClock();
+
+// ════════════════════════════════════════════════════════
+// EARTH DAY/NIGHT CYCLE
+// ════════════════════════════════════════════════════════
+function updateEarthCycle() {
+  const h = new Date().getHours();
+  // 0=midnight, 12=noon. nightFactor: 1=full night, 0=full day
+  // Night: 19-5 (full), Dawn/Dusk: 5-7 & 17-19 (transition), Day: 7-17 (full)
+  let nightFactor;
+  if (h >= 7 && h < 17) nightFactor = 0;          // full day
+  else if (h >= 19 || h < 5) nightFactor = 1;      // full night
+  else if (h >= 5 && h < 7) nightFactor = 1 - (h - 5) / 2;   // dawn
+  else nightFactor = (h - 17) / 2;                 // dusk
+
+  const ocean = document.getElementById('earth-ocean');
+  const land = document.getElementById('earth-land');
+  const lights = document.getElementById('earth-lights');
+  const glow = document.querySelector('#glow stop');
+  if (!ocean) return;
+
+  // Interpolate colors
+  const lerp = (a, b, t) => Math.round(a + (b - a) * t);
+  const lerpHex = (day, night, t) => {
+    const d = [parseInt(day.slice(1,3),16), parseInt(day.slice(3,5),16), parseInt(day.slice(5,7),16)];
+    const n = [parseInt(night.slice(1,3),16), parseInt(night.slice(3,5),16), parseInt(night.slice(5,7),16)];
+    return '#' + [lerp(d[0],n[0],t), lerp(d[1],n[1],t), lerp(d[2],n[2],t)]
+      .map(v => v.toString(16).padStart(2,'0')).join('');
+  };
+
+  // Ocean: day=#0c4a78 night=#040e1a
+  ocean.setAttribute('fill', lerpHex('#0c4a78', '#040e1a', nightFactor));
+  ocean.setAttribute('opacity', String(0.5 + nightFactor * 0.2));
+
+  // Land: day=#1a6a3a night=#0a1a10
+  land.setAttribute('fill', lerpHex('#1a6a3a', '#0a1a10', nightFactor));
+  land.setAttribute('opacity', String(0.5 - nightFactor * 0.15));
+
+  // City lights: visible at night
+  lights.setAttribute('opacity', String(nightFactor * 0.85));
+
+  // Glow: warmer during day, cooler at night
+  if (glow) glow.setAttribute('stop-color', lerpHex('#1a4a6c', '#0a0e1a', nightFactor));
+}
+updateEarthCycle();
+setInterval(updateEarthCycle, 60000); // update every minute
+
+// Auto-connect WebSocket
+connectWS();
+
+// Re-layout on resize
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(renderAll, 150);
+});
+</script>
+</body>
+</html>
