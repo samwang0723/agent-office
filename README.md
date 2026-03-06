@@ -2,6 +2,9 @@
 
 Pixel-art game UI for visualizing Claude Code multi-agent teams. Watch agents work in real-time, send them messages, and monitor activity — all through a retro-styled browser dashboard connected via WebSocket.
 
+<img width="873" height="902" alt="Screenshot 2026-03-06 at 1 55 50 PM" src="https://github.com/user-attachments/assets/3ed4c720-0eee-47f4-bc20-c6f7446bfb9e" />
+
+
 ## Quick Start
 
 ### Prerequisites
