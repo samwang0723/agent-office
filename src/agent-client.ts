@@ -13,7 +13,12 @@
 const BRIDGE = process.env.BRIDGE_URL || "http://localhost:3456";
 
 export type AgentRole = "pm" | "architect" | "dev" | "qa" | "security";
-export type AgentStatus = "working" | "thinking" | "idle" | "blocked" | "reviewing";
+export type AgentStatus =
+  | "working"
+  | "thinking"
+  | "idle"
+  | "blocked"
+  | "reviewing";
 
 export interface AgentStateUpdate {
   id: string;
@@ -65,7 +70,11 @@ export async function pollInbox(agentId: string): Promise<InboxMessage[]> {
 }
 
 // ─── Send a reply back to the UI ─────────────────────────────────────────────
-export async function sendReply(agentId: string, reply: string, stateUpdate?: Partial<AgentStateUpdate>): Promise<void> {
+export async function sendReply(
+  agentId: string,
+  reply: string,
+  stateUpdate?: Partial<AgentStateUpdate>,
+): Promise<void> {
   try {
     await fetch(`${BRIDGE}/reply`, {
       method: "POST",
@@ -81,9 +90,11 @@ export async function sendReply(agentId: string, reply: string, stateUpdate?: Pa
 export async function runAgentLoop(
   agentId: string,
   onMessage: (msg: InboxMessage) => Promise<void>,
-  pollIntervalMs = 2000
+  pollIntervalMs = 2000,
 ): Promise<void> {
-  console.log(`[AgentOffice] Agent ${agentId} polling inbox every ${pollIntervalMs}ms`);
+  console.log(
+    `[AgentOffice] Agent ${agentId} polling inbox every ${pollIntervalMs}ms`,
+  );
 
   while (true) {
     const messages = await pollInbox(agentId);
