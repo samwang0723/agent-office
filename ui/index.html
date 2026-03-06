@@ -135,8 +135,9 @@ svg.conns{position:absolute;inset:0;pointer-events:none;z-index:5}
      color:#445;border-bottom:2px solid transparent;transition:all .15s}
 .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
 .tab:hover:not(.active){color:#667}
-.tab .badge{background:#ff5252;color:#fff;border-radius:10px;padding:1px 5px;
-            font-family:'Press Start 2P',monospace;font-size:8px;margin-left:4px}
+.tab .badge{background:#ff5252;border-radius:50%;width:8px;height:8px;
+            display:inline-block;margin-left:4px;vertical-align:middle;
+            box-shadow:0 0 6px #ff5252;animation:pulse .8s infinite}
 .pcontent{flex:1;overflow-y:auto;padding:12px;scrollbar-width:thin;scrollbar-color:#2a2d3e transparent}
 
 /* ── AGENT CARDS ─────────────────────────────────────────────── */
@@ -164,7 +165,12 @@ svg.conns{position:absolute;inset:0;pointer-events:none;z-index:5}
 
 /* ── CHAT PANEL (shown when agent selected) ──────────────────── */
 .chat-panel{border-top:1px solid var(--border);flex-shrink:0;
-            display:flex;flex-direction:column;max-height:260px}
+            display:flex;flex-direction:column;max-height:70vh;min-height:120px}
+.chat-resize{height:6px;cursor:ns-resize;background:transparent;flex-shrink:0;
+             display:flex;align-items:center;justify-content:center}
+.chat-resize::after{content:'';width:32px;height:3px;border-radius:2px;
+                    background:#ffffff15;transition:background .15s}
+.chat-resize:hover::after{background:#ffffff30}
 .chat-hdr{padding:8px 12px;background:#090b14;border-bottom:1px solid var(--border);
           display:flex;align-items:center;gap:8px;flex-shrink:0}
 .chat-hdr-icon{font-size:16px}
@@ -450,13 +456,14 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:1000;
   <div class="panel">
     <div class="tabs">
       <div class="tab active" id="tab-agents-btn" onclick="setTab('agents',this)">AGENTS</div>
-      <div class="tab" id="tab-log-btn" onclick="setTab('log',this)">LOG <span id="log-badge" class="badge" style="display:none">!</span></div>
+      <div class="tab" id="tab-log-btn" onclick="setTab('log',this)">LOG <span id="log-badge" class="badge" style="display:none"></span></div>
     </div>
     <div class="pcontent" id="tab-agents"></div>
     <div class="pcontent" id="tab-log" style="display:none"></div>
 
     <!-- Chat panel (shown when agent selected) -->
     <div class="chat-panel" id="chat-panel" style="display:none">
+      <div class="chat-resize" id="chat-resize"></div>
       <div class="chat-hdr">
         <span class="chat-hdr-icon" id="chat-icon">👤</span>
         <span class="chat-hdr-name" id="chat-name" style="color:var(--accent)">AGENT</span>
@@ -994,8 +1001,10 @@ function openChat(agentId) {
   if (!agent) return;
   const r = ROLES[agent.role] || ROLES.dev;
 
-  document.getElementById('chat-panel').style.display = 'flex';
-  document.getElementById('chat-panel').style.flexDirection = 'column';
+  const cp = document.getElementById('chat-panel');
+  cp.style.display = 'flex';
+  cp.style.flexDirection = 'column';
+  if (!cp.style.height) cp.style.height = '260px';
   document.getElementById('chat-icon').textContent = r.emoji;
   document.getElementById('chat-name').textContent = `${agent.name||agentId} (${r.label})`;
   document.getElementById('chat-name').style.color = r.color;
@@ -1223,6 +1232,32 @@ document.addEventListener('keydown', e => {
   if (e.key==='Escape') closeChat();
 });
 
+// ── Chat panel resize drag ──
+(function() {
+  const handle = document.getElementById('chat-resize');
+  const panel = document.getElementById('chat-panel');
+  let dragging = false, startY = 0, startH = 0;
+  handle.addEventListener('mousedown', e => {
+    dragging = true;
+    startY = e.clientY;
+    startH = panel.offsetHeight;
+    document.body.style.cursor = 'ns-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const h = Math.max(120, Math.min(window.innerHeight * 0.7, startH + (startY - e.clientY)));
+    panel.style.height = h + 'px';
+  });
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  });
+})();
+
 window.addEventListener('resize', drawConns);
 
 // ════════════════════════════════════════════════════════
@@ -1242,7 +1277,20 @@ async function fetchTeams() {
       opt.textContent = `${t.name} (${t.memberCount})`;
       sel.appendChild(opt);
     });
-    addLog('system', `Found ${teams.length} team(s)`);
+    addLog('system', `Found ${teams.length} active team(s)`);
+    if (teams.length > 0) {
+      // Auto-select the most recent team (last in list)
+      const latest = teams[teams.length - 1];
+      sel.value = latest.name;
+      selectTeam(latest.name);
+    } else {
+      // No active teams — clear any stale agent state
+      agents = [];
+      chats = {};
+      unread = {};
+      selectedAgent = null;
+      renderAll();
+    }
   } catch {}
 }
 
@@ -1259,6 +1307,10 @@ async function selectTeam(teamName) {
     addLog('system', `Scanning team: ${teamName}`);
     // Clear local state — new state will arrive via WebSocket
     agents = [];
+    chats = {};
+    unread = {};
+    selectedAgent = null;
+    closeChat();
     renderAll();
   } catch (e) {
     addLog('system', `Failed to select team: ${e.message}`);
