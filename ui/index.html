@@ -548,7 +548,6 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:1000;
         <label class="settings-label" data-i18n="settings.font">FONT</label>
         <select class="settings-select" id="set-font" onchange="onSettingChange()">
           <option value="VT323">VT323 (default)</option>
-          <option value="Press Start 2P">Press Start 2P</option>
           <option value="monospace">System Mono</option>
           <option value="'Courier New', monospace">Courier New</option>
         </select>
@@ -561,6 +560,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:1000;
           <button class="settings-size-btn" onclick="adjustFontSize(1)">+</button>
         </div>
       </div>
+      <button class="settings-size-btn" style="width:100%;height:auto;padding:7px 0;margin-top:4px" onclick="resetSettings()">RESET</button>
     </div>
   </div>
 </div>
@@ -764,6 +764,15 @@ function getCurrentSettingsFromUI() {
 
 function onSettingChange() {
   const s = getCurrentSettingsFromUI();
+  saveSettings(s);
+  applySettings(s);
+}
+
+function resetSettings() {
+  const s = { ...DEFAULT_SETTINGS };
+  document.getElementById('set-lang').value = s.lang;
+  document.getElementById('set-font').value = s.font;
+  document.getElementById('set-size-val').textContent = s.fontSize;
   saveSettings(s);
   applySettings(s);
 }
