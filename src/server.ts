@@ -15,7 +15,7 @@ import {
   getTeamConfig,
   listTeams,
   startScanner,
-  stopScanner,
+  stopScanner
 } from "./jsonl-scanner";
 
 const PORT = Number(process.env.PORT) || 3456;
@@ -76,7 +76,7 @@ function broadcast(event: string, data: unknown) {
   const payload = JSON.stringify({
     event,
     data,
-    timestamp: new Date().toISOString(),
+    timestamp: new Date().toISOString()
   });
   for (const ws of clients) {
     try {
@@ -120,7 +120,7 @@ function inferRole(agentId: string): string {
     arch: "architect",
     dev: "dev",
     qa: "qa",
-    sec: "security",
+    sec: "security"
   };
   return roleMap[prefix] || "dev";
 }
@@ -128,7 +128,7 @@ function inferRole(agentId: string): string {
 function ensureAgent(
   state: AgentState[],
   agentId: string,
-  fields?: Partial<AgentState>,
+  fields?: Partial<AgentState>
 ): number {
   const idx = state.findIndex((a) => a.id === agentId);
   if (idx >= 0) return idx;
@@ -142,7 +142,7 @@ function ensureAgent(
     task: "Registered dynamically",
     progress: 0,
     lastUpdated: new Date().toISOString(),
-    ...fields,
+    ...fields
   };
   state.push(newAgent);
   console.log(`[STATE] Auto-registered new agent: ${agentId} (role: ${role})`);
@@ -155,7 +155,7 @@ function updateAgentState(agentId: string, update: Partial<AgentState>) {
   state[idx] = {
     ...state[idx],
     ...update,
-    lastUpdated: new Date().toISOString(),
+    lastUpdated: new Date().toISOString()
   };
   writeState(state);
   broadcast("state_update", state);
@@ -163,7 +163,7 @@ function updateAgentState(agentId: string, update: Partial<AgentState>) {
     timestamp: new Date().toISOString(),
     type: "state_update",
     agentId,
-    data: update,
+    data: update
   });
 }
 
@@ -186,7 +186,7 @@ function writeInbox(agentId: string, message: string, from = "user") {
     from,
     message,
     timestamp: new Date().toISOString(),
-    read: false,
+    read: false
   };
 
   const inboxFile = join(INBOX_DIR, `${agentId}.json`);
@@ -203,13 +203,13 @@ function writeInbox(agentId: string, message: string, from = "user") {
     timestamp: new Date().toISOString(),
     type: "message_in",
     agentId,
-    data: msg,
+    data: msg
   });
 
   // Mark agent as thinking
   updateAgentState(agentId, {
     status: "thinking",
-    task: `Processing: "${message.slice(0, 50)}${message.length > 50 ? "…" : ""}"`,
+    task: `Processing: "${message.slice(0, 50)}${message.length > 50 ? "…" : ""}"`
   });
 
   return msg;
@@ -240,50 +240,133 @@ function clearInbox(agentId: string) {
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Headers": "Content-Type"
 };
 
 // ─── Resolve team-lead tmux pane at runtime ──────────────────────────────────
-// The lead session's tmuxPaneId is empty in config. We find it by matching
-// the leadSessionId process to a tmux pane via TTY.
+// The lead's tmuxPaneId is empty in config. We find it by:
+// 1. Using --parent-session-id from teammate processes to verify the correct team
+// 2. Finding the bare `claude` process (no --agent-id) in the same tmux session
+// 3. Preferring the pane closest to (but created before) the teammate panes
+// This supports multiple teams running in parallel.
 let cachedLeadPane: string | null = null;
 let cachedLeadTeam: string | null = null;
 
+function paneIdNum(paneId: string): number {
+  return parseInt(paneId.replace("%", ""), 10);
+}
+
 function resolveLeadPane(
-  config: { leadSessionId?: string; name: string },
-  member?: { agentType: string } | undefined,
+  config: {
+    leadSessionId?: string;
+    members: { tmuxPaneId?: string; agentType: string }[];
+    name: string;
+  },
+  member?: { agentType: string } | undefined
 ): string | null {
   if (!member || member.agentType !== "team-lead") return null;
-  if (!config.leadSessionId) return null;
 
-  // Return cache if same team
-  if (cachedLeadTeam === config.name && cachedLeadPane) return cachedLeadPane;
+  // Return cache if same team and pane still exists
+  if (cachedLeadTeam === config.name && cachedLeadPane) {
+    const check = Bun.spawnSync({
+      cmd: ["tmux", "display-message", "-t", cachedLeadPane, "-p", ""]
+    });
+    if (check.exitCode === 0) return cachedLeadPane;
+    cachedLeadPane = null;
+    cachedLeadTeam = null;
+  }
 
   try {
-    // Find the lead process TTY by matching the session ID in process args
-    const grep = Bun.spawnSync({
-      cmd: [
-        "bash",
-        "-c",
-        `ps aux | grep "${config.leadSessionId}" | grep -v grep | awk '{print $7}' | head -1`,
-      ],
-    });
-    const tty = grep.stdout.toString().trim();
-    if (!tty) return null;
+    // Collect known teammate pane IDs (non-lead members with assigned panes)
+    const teammatePanes = new Set(
+      config.members
+        .filter((m) => m.tmuxPaneId && m.agentType !== "team-lead")
+        .map((m) => m.tmuxPaneId)
+    );
 
-    // Map TTY to tmux pane
-    const panes = Bun.spawnSync({
-      cmd: ["tmux", "list-panes", "-a", "-F", "#{pane_id} #{pane_tty}"],
+    if (teammatePanes.size === 0) return null;
+
+    // Verify at least one teammate process has matching --parent-session-id
+    // This confirms the team config is still valid
+    if (config.leadSessionId) {
+      const verify = Bun.spawnSync({
+        cmd: [
+          "bash",
+          "-c",
+          `pgrep -f "parent-session-id.*${config.leadSessionId}" | head -1`
+        ]
+      });
+      if (!verify.stdout.toString().trim()) return null;
+    }
+
+    // Find the tmux session containing the teammates
+    const samplePaneId = [...teammatePanes][0];
+    const sessionResult = Bun.spawnSync({
+      cmd: [
+        "tmux",
+        "display-message",
+        "-t",
+        samplePaneId!,
+        "-p",
+        "#{session_name}"
+      ]
     });
-    const lines = panes.stdout.toString().trim().split("\n");
+    const teamSession = sessionResult.stdout.toString().trim();
+    if (!teamSession) return null;
+
+    // The lead pane was created BEFORE teammate panes (TeamCreate spawns after)
+    const minTeammatePaneNum = Math.min(
+      ...[...teammatePanes].map((p) => paneIdNum(p!))
+    );
+
+    // List all panes in that session (across all windows)
+    const panesResult = Bun.spawnSync({
+      cmd: [
+        "tmux",
+        "list-panes",
+        "-s",
+        "-t",
+        teamSession,
+        "-F",
+        "#{pane_id} #{pane_tty}"
+      ]
+    });
+    const lines = panesResult.stdout.toString().trim().split("\n");
+
+    // Find the bare claude pane with the highest ID still before teammate panes
+    let bestPaneId: string | null = null;
+    let bestPaneNum = -1;
+
     for (const line of lines) {
       const [paneId, paneTty] = line.split(" ");
-      if (paneTty?.endsWith(tty)) {
-        cachedLeadPane = paneId;
-        cachedLeadTeam = config.name;
-        console.log(`[MSG] Resolved team-lead pane: ${paneId} (tty: ${tty})`);
-        return paneId;
+      if (!paneId || !paneTty || teammatePanes.has(paneId)) continue;
+
+      const num = paneIdNum(paneId);
+      if (num >= minTeammatePaneNum) continue;
+      if (num <= bestPaneNum) continue;
+
+      // Check if this pane runs a bare claude process (no --agent-id flag)
+      const ttyShort = paneTty.replace("/dev/tty", "");
+      const check = Bun.spawnSync({
+        cmd: [
+          "bash",
+          "-c",
+          `ps -t ${ttyShort} -o command= 2>/dev/null | grep -q "claude" && ! ps -t ${ttyShort} -o command= 2>/dev/null | grep "claude" | grep -q "\\-\\-agent-id"`
+        ]
+      });
+      if (check.exitCode === 0) {
+        bestPaneId = paneId;
+        bestPaneNum = num;
       }
+    }
+
+    if (bestPaneId) {
+      cachedLeadPane = bestPaneId;
+      cachedLeadTeam = config.name;
+      console.log(
+        `[MSG] Resolved team-lead pane: ${bestPaneId} (closest before teammate panes)`
+      );
+      return bestPaneId;
     }
   } catch {}
   return null;
@@ -292,7 +375,7 @@ function resolveLeadPane(
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS },
+    headers: { "Content-Type": "application/json", ...CORS }
   });
 }
 
@@ -321,7 +404,7 @@ async function handleRequest(req: Request): Promise<Response> {
       state[idx] = {
         ...state[idx],
         ...u,
-        lastUpdated: new Date().toISOString(),
+        lastUpdated: new Date().toISOString()
       };
     }
     writeState(state);
@@ -329,7 +412,7 @@ async function handleRequest(req: Request): Promise<Response> {
     appendLog({
       timestamp: new Date().toISOString(),
       type: "state_update",
-      data: updates,
+      data: updates
     });
     return json({ ok: true });
   }
@@ -361,7 +444,7 @@ async function handleRequest(req: Request): Promise<Response> {
               "-t",
               paneId,
               "-l",
-              body.message,
+              body.message
             ]);
             // Send Enter separately to trigger submission
             const proc = Bun.spawnSync([
@@ -369,16 +452,16 @@ async function handleRequest(req: Request): Promise<Response> {
               "send-keys",
               "-t",
               paneId,
-              "Enter",
+              "Enter"
             ]);
             tmuxSent = proc.exitCode === 0;
             if (tmuxSent) {
               console.log(
-                `[MSG] Sent to ${body.agentId} via tmux pane ${paneId}`,
+                `[MSG] Sent to ${body.agentId} via tmux pane ${paneId}`
               );
             } else {
               console.error(
-                `[MSG] tmux send-keys failed for ${body.agentId}: exit ${proc.exitCode}`,
+                `[MSG] tmux send-keys failed for ${body.agentId}: exit ${proc.exitCode}`
               );
             }
           } catch (e) {
@@ -386,7 +469,7 @@ async function handleRequest(req: Request): Promise<Response> {
           }
         } else {
           console.log(
-            `[MSG] No tmux pane for ${body.agentId} — message saved to inbox only`,
+            `[MSG] No tmux pane for ${body.agentId} — message saved to inbox only`
           );
         }
       }
@@ -398,7 +481,7 @@ async function handleRequest(req: Request): Promise<Response> {
       agentId: body.agentId,
       message: body.message,
       msgId: msg.id,
-      tmuxSent,
+      tmuxSent
     });
     return json({ ok: true, msgId: msg.id, tmuxSent });
   }
@@ -438,14 +521,14 @@ async function handleRequest(req: Request): Promise<Response> {
       updateAgentState(body.agentId, {
         status: (body.status as AgentState["status"]) || "working",
         task: body.task || "",
-        progress: body.progress,
+        progress: body.progress
       });
     }
     appendLog({
       timestamp: new Date().toISOString(),
       type: "agent_reply",
       agentId: body.agentId,
-      data: body,
+      data: body
     });
     return json({ ok: true });
   }
@@ -490,8 +573,8 @@ async function handleRequest(req: Request): Promise<Response> {
         agentType: m.agentType,
         model: m.model,
         isActive: m.isActive,
-        color: m.color,
-      })),
+        color: m.color
+      }))
     });
   }
 
@@ -521,9 +604,9 @@ async function handleRequest(req: Request): Promise<Response> {
           timestamp: new Date().toISOString(),
           type: "agent_reply",
           agentId,
-          data: { reply: reply.slice(0, 200) },
+          data: { reply: reply.slice(0, 200) }
         });
-      },
+      }
     );
     return json({ ok: true, team: teamName });
   }
@@ -540,7 +623,7 @@ async function handleRequest(req: Request): Promise<Response> {
       ok: true,
       agents: readState().length,
       clients: clients.size,
-      ts: new Date().toISOString(),
+      ts: new Date().toISOString()
     });
   }
 
@@ -549,7 +632,7 @@ async function handleRequest(req: Request): Promise<Response> {
     const uiFile = join(ROOT_DIR, "ui", "index.html");
     if (existsSync(uiFile)) {
       return new Response(Bun.file(uiFile), {
-        headers: { "Content-Type": "text/html" },
+        headers: { "Content-Type": "text/html" }
       });
     }
     return new Response("UI not found. Put index.html in ui/", { status: 404 });
@@ -591,8 +674,8 @@ const server = Bun.serve({
         JSON.stringify({
           event: "state_update",
           data: activeTeamName ? readState() : [],
-          timestamp: new Date().toISOString(),
-        }),
+          timestamp: new Date().toISOString()
+        })
       );
       console.log(`[WS] Client connected (${clients.size} total)`);
     },
@@ -606,8 +689,8 @@ const server = Bun.serve({
         const data = JSON.parse(String(msg));
         if (data.type === "ping") ws.send(JSON.stringify({ type: "pong" }));
       } catch {}
-    },
-  },
+    }
+  }
 });
 
 console.log(`
