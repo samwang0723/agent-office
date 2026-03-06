@@ -274,7 +274,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:1000;
 <header>
   <div class="logo">AGENT<em>OFFICE</em> <span class="version">v0.1.0</span></div>
   <div class="hright">
-    <span><span class="ws-dot" id="ws-dot"></span><span id="ws-label">DISCONNECTED</span></span>
+    <span><span class="ws-dot" id="ws-dot"></span><span id="ws-label" data-i18n="status.disconnected">DISCONNECTED</span></span>
     <span id="clock">00:00:00</span>
     <span id="acnt" style="color:var(--accent)">0 AGENTS</span>
   </div>
@@ -282,10 +282,10 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:1000;
 
 <!-- Bridge connection bar -->
 <div class="bridge-bar">
-  <span style="color:#445">BRIDGE</span>
+  <span style="color:#445" data-i18n="bridge.label">BRIDGE</span>
   <input class="bridge-url" id="bridge-url" value="ws://localhost:3456" placeholder="ws://localhost:3456" />
   <button class="bridge-btn" onclick="connectWS()">CONNECT</button>
-  <span style="color:#445;margin-left:12px">TEAM</span>
+  <span style="color:#445;margin-left:12px" data-i18n="bridge.team">TEAM</span>
   <select id="team-select" class="bridge-url" style="width:160px;cursor:pointer" onchange="selectTeam(this.value)">
     <option value="">— select team —</option>
   </select>
@@ -560,7 +560,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:1000;
           <button class="settings-size-btn" onclick="adjustFontSize(1)">+</button>
         </div>
       </div>
-      <button class="settings-size-btn" style="width:100%;height:auto;padding:7px 0;margin-top:4px" onclick="resetSettings()">RESET</button>
+      <button class="settings-size-btn" style="width:100%;height:auto;padding:7px 0;margin-top:4px" onclick="resetSettings()" data-i18n="settings.reset">RESET</button>
     </div>
   </div>
 </div>
@@ -614,6 +614,14 @@ const I18N = {
     'status.disconnected': 'DISCONNECTED',
     'status.connecting': 'connecting\u2026',
     'status.error': 'ERROR',
+    'status.idle': 'IDLE',
+    'status.working': 'WORKING',
+    'status.thinking': 'THINKING',
+    'status.blocked': 'BLOCKED',
+    'status.reviewing': 'REVIEWING',
+    'bridge.label': 'BRIDGE',
+    'header.agentCount': '{count} AGENTS',
+    'settings.reset': 'RESET',
   },
   'zh-TW': {
     'settings.title': '\u8A2D\u5B9A',
@@ -632,6 +640,14 @@ const I18N = {
     'status.disconnected': '\u5DF2\u65B7\u7DDA',
     'status.connecting': '\u9023\u7DDA\u4E2D\u2026',
     'status.error': '\u932F\u8AA4',
+    'status.idle': '\u9592\u7F6E',
+    'status.working': '\u5DE5\u4F5C\u4E2D',
+    'status.thinking': '\u601D\u8003\u4E2D',
+    'status.blocked': '\u5DF2\u963B\u585E',
+    'status.reviewing': '\u5BE9\u67E5\u4E2D',
+    'bridge.label': '\u6A4B\u63A5',
+    'header.agentCount': '{count} \u4EE3\u7406',
+    'settings.reset': '\u91CD\u7F6E',
   },
   'zh-CN': {
     'settings.title': '\u8BBE\u7F6E',
@@ -650,6 +666,14 @@ const I18N = {
     'status.disconnected': '\u5DF2\u65AD\u5F00',
     'status.connecting': '\u8FDE\u63A5\u4E2D\u2026',
     'status.error': '\u9519\u8BEF',
+    'status.idle': '\u7A7A\u95F2',
+    'status.working': '\u5DE5\u4F5C\u4E2D',
+    'status.thinking': '\u601D\u8003\u4E2D',
+    'status.blocked': '\u5DF2\u963B\u585E',
+    'status.reviewing': '\u5BA1\u67E5\u4E2D',
+    'bridge.label': '\u6865\u63A5',
+    'header.agentCount': '{count} \u4EE3\u7406',
+    'settings.reset': '\u91CD\u7F6E',
   },
   ja: {
     'settings.title': '\u8A2D\u5B9A',
@@ -668,6 +692,14 @@ const I18N = {
     'status.disconnected': '\u5207\u65AD',
     'status.connecting': '\u63A5\u7D9A\u4E2D\u2026',
     'status.error': '\u30A8\u30E9\u30FC',
+    'status.idle': '\u5F85\u6A5F',
+    'status.working': '\u4F5C\u696D\u4E2D',
+    'status.thinking': '\u601D\u8003\u4E2D',
+    'status.blocked': '\u30D6\u30ED\u30C3\u30AF',
+    'status.reviewing': '\u30EC\u30D3\u30E5\u30FC\u4E2D',
+    'bridge.label': '\u30D6\u30EA\u30C3\u30B8',
+    'header.agentCount': '{count} \u30A8\u30FC\u30B8\u30A7\u30F3\u30C8',
+    'settings.reset': '\u30EA\u30BB\u30C3\u30C8',
   },
   ko: {
     'settings.title': '\uC124\uC815',
@@ -686,6 +718,14 @@ const I18N = {
     'status.disconnected': '\uC5F0\uACB0 \uB04A\uAE40',
     'status.connecting': '\uC5F0\uACB0 \uC911\u2026',
     'status.error': '\uC624\uB958',
+    'status.idle': '\uB300\uAE30',
+    'status.working': '\uC791\uC5C5 \uC911',
+    'status.thinking': '\uC0AC\uACE0 \uC911',
+    'status.blocked': '\uCC28\uB2E8',
+    'status.reviewing': '\uAC80\uD1A0 \uC911',
+    'bridge.label': '\uBE0C\uB9BF\uC9C0',
+    'header.agentCount': '{count} \uC5D0\uC774\uC804\uD2B8',
+    'settings.reset': '\uCD08\uAE30\uD654',
   },
 };
 
@@ -717,6 +757,11 @@ function applyI18n() {
   if (chatInput && selectedAgent) {
     chatInput.placeholder = t('chat.placeholder', {agent: selectedAgent});
   }
+  // Update agent count
+  const acnt = document.getElementById('acnt');
+  if (acnt) acnt.textContent = t('header.agentCount', {count: agents.length});
+  // Re-render stations to update status badges
+  if (typeof renderAll === 'function') renderAll();
 }
 
 const SETTINGS_KEY = 'agent-office-settings';
@@ -797,12 +842,12 @@ document.addEventListener('click', e => {
 function connectWS() {
   if (ws) { try { ws.close(); } catch {} }
   bridgeUrl = document.getElementById('bridge-url').value.trim() || 'ws://localhost:3456';
-  setStatus('connecting…', '');
+  setStatus('status.connecting', '');
 
   ws = new WebSocket(bridgeUrl);
 
   ws.onopen = () => {
-    setStatus('CONNECTED', 'connected');
+    setStatus('status.connected', 'connected');
     addLog('system', 'Bridge connected');
     fetchTeams();
     // ping keepalive
@@ -824,19 +869,19 @@ function connectWS() {
     } catch {}
   };
 
-  ws.onerror = () => setStatus('ERROR', 'error');
+  ws.onerror = () => setStatus('status.error', 'error');
   ws.onclose = () => {
-    setStatus('DISCONNECTED', '');
+    setStatus('status.disconnected', '');
     setTimeout(connectWS, 5000); // auto-reconnect
   };
 }
 
-function setStatus(label, cls) {
+function setStatus(key, cls) {
   const dot = document.getElementById('ws-dot');
   const lbl = document.getElementById('ws-label');
   dot.className = 'ws-dot' + (cls ? ' ' + cls : '');
-  lbl.textContent = label;
-  document.getElementById('bridge-status').textContent = label === 'CONNECTED'
+  lbl.textContent = t(key);
+  document.getElementById('bridge-status').textContent = key === 'status.connected'
     ? `↔ ${bridgeUrl}` : '';
 }
 
@@ -1118,7 +1163,7 @@ function stationHTML(agent, pos) {
         <div class="prog-bar" style="width:${prog}%;background:${r.color}55;box-shadow:0 0 4px ${r.color}"></div>
       </div>
       <div class="nametag" style="color:${r.color};border-color:${r.color}44">${agent.name||agent.id}</div>
-      <div class="sbadge ${agent.status||'idle'}">${(agent.status||'idle').toUpperCase()}</div>
+      <div class="sbadge ${agent.status||'idle'}">${t('status.'+(agent.status||'idle'))}</div>
     </div>`;
 }
 
@@ -1203,7 +1248,7 @@ function renderAll() {
   }
   renderAgentPanel();
   renderTicker();
-  document.getElementById('acnt').textContent = `${agents.length} AGENTS`;
+  document.getElementById('acnt').textContent = t('header.agentCount', {count: agents.length});
 }
 
 // ════════════════════════════════════════════════════════
@@ -1264,7 +1309,7 @@ function renderAgentPanel() {
           </div>
           <div class="sdot ${a.status||'idle'}" style="margin-left:auto"></div>
         </div>
-        <div class="atask"><span>${(a.status||'idle').toUpperCase()}</span> — ${a.task||'standby'}</div>
+        <div class="atask"><span>${t('status.'+(a.status||'idle'))}</span> — ${a.task||'standby'}</div>
         <div class="ameta">
           ${a.model?`<span class="chip">${shortModel(a.model)}</span>`:''}
           ${a.tokens?`<span class="chip">${fmtTokens(a.tokens)}</span>`:''}
@@ -1309,7 +1354,7 @@ function renderChatMessages(agentId) {
   const msgs = chats[agentId] || [];
   const el = document.getElementById('chat-messages');
   el.innerHTML = msgs.length === 0
-    ? `<div style="color:#334;font-size:1em;text-align:center;padding:10px">No messages yet. Say something!</div>`
+    ? `<div style="color:#334;font-size:1em;text-align:center;padding:10px">${t('chat.empty')}</div>`
     : msgs.map(m => `
         <div class="msg ${m.from}">
           <div>${m.text}</div>
