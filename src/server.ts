@@ -19,7 +19,8 @@ import {
 } from "./jsonl-scanner";
 
 const PORT = 3456;
-const DATA_DIR = join(import.meta.dir, "data");
+const ROOT_DIR = join(import.meta.dir, "..");
+const DATA_DIR = join(ROOT_DIR, "data");
 const INBOX_DIR = join(DATA_DIR, "inbox");
 const STATE_FILE = join(DATA_DIR, "agents.json");
 const LOG_FILE = join(DATA_DIR, "bridge.log");
@@ -531,7 +532,7 @@ async function handleRequest(req: Request): Promise<Response> {
 
   // ── Serve UI ──
   if (method === "GET" && (path === "/" || path === "/ui")) {
-    const uiFile = join(import.meta.dir, "..", "ui", "index.html");
+    const uiFile = join(ROOT_DIR, "ui", "index.html");
     if (existsSync(uiFile)) {
       return new Response(Bun.file(uiFile), {
         headers: { "Content-Type": "text/html" }
