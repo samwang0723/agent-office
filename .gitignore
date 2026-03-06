@@ -1,7 +1,9 @@
 node_modules/
 .DS_Store
-data/bridge.log
-data/inbox/
-data/agents.json
+
+# Runtime data
+data/
+
+# Claude Code memory
 CLAUDE.md
 CLAUDE-*.md
