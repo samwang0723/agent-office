@@ -505,12 +505,26 @@ async function handleRequest(req: Request): Promise<Response> {
     // Clear existing state when switching teams
     stopScanner();
     activeTeamName = teamName;
+    cachedLeadPane = null;
+    cachedLeadTeam = null;
     writeState([]);
     broadcast("state_update", []);
 
-    startScanner(teamName, (agentId, update) => {
-      updateAgentState(agentId, update as Partial<AgentState>);
-    });
+    startScanner(
+      teamName,
+      (agentId, update) => {
+        updateAgentState(agentId, update as Partial<AgentState>);
+      },
+      (agentId, reply) => {
+        broadcast("agent_reply", { agentId, reply });
+        appendLog({
+          timestamp: new Date().toISOString(),
+          type: "agent_reply",
+          agentId,
+          data: { reply: reply.slice(0, 200) },
+        });
+      },
+    );
     return json({ ok: true, team: teamName });
   }
 
@@ -572,11 +586,11 @@ const server = Bun.serve({
   websocket: {
     open(ws) {
       clients.add(ws);
-      // Send current state immediately on connect
+      // Send current state on connect — empty if no active team
       ws.send(
         JSON.stringify({
           event: "state_update",
-          data: readState(),
+          data: activeTeamName ? readState() : [],
           timestamp: new Date().toISOString(),
         }),
       );
@@ -599,8 +613,8 @@ const server = Bun.serve({
 console.log(`
 ╔═══════════════════════════════════════╗
 ║  Agent Office Bridge Server           ║
-║  http://localhost:${PORT}               ║
-║  ws://localhost:${PORT}                 ║
+║  http://localhost:${PORT}                ║
+║  ws://localhost:${PORT}                  ║
 ╠═══════════════════════════════════════╣
 ║  GET  /teams           → list teams   ║
 ║  GET  /teams/:name     → team details ║

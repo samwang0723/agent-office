@@ -70,9 +70,11 @@ interface TrackedAgent {
   cacheCreateTokens: number;
   lastContextUsed: number; // input tokens of last turn = current context size
   actualModel: string; // real model from JSONL (may differ from config)
+  lastReplyText: string; // assistant text output to forward as chat reply
 }
 
 type StateCallback = (agentId: string, update: Record<string, unknown>) => void;
+type ReplyCallback = (agentId: string, reply: string) => void;
 
 const tracked = new Map<string, TrackedAgent>();
 let scanTimer: ReturnType<typeof setInterval> | null = null;
@@ -96,6 +98,7 @@ export function listTeams(): {
       if (!existsSync(configPath)) continue;
       try {
         const config: TeamConfig = JSON.parse(readFileSync(configPath, "utf8"));
+        if (!isLeadAlive(config)) continue;
         teams.push({
           name: config.name || dir,
           description: config.description,
@@ -105,6 +108,19 @@ export function listTeams(): {
     }
   } catch {}
   return teams;
+}
+
+/** Check if a team's lead session process is still running */
+function isLeadAlive(config: TeamConfig): boolean {
+  if (!config.leadSessionId) return false;
+  try {
+    const result = Bun.spawnSync({
+      cmd: ["pgrep", "-f", config.leadSessionId],
+    });
+    return result.exitCode === 0;
+  } catch {
+    return false;
+  }
 }
 
 /** Read team config from ~/.claude/teams/{teamName}/config.json */
@@ -122,7 +138,11 @@ export function getTeamConfig(teamName: string): TeamConfig | null {
  * Start scanning for a specific team.
  * Reads team config for authoritative member list, then finds and tails JSONL files.
  */
-export function startScanner(teamName: string, onStateUpdate: StateCallback) {
+export function startScanner(
+  teamName: string,
+  onStateUpdate: StateCallback,
+  onReply?: ReplyCallback,
+) {
   const config = getTeamConfig(teamName);
   if (!config) {
     console.error(`[SCANNER] Team not found: ${teamName}`);
@@ -148,17 +168,17 @@ export function startScanner(teamName: string, onStateUpdate: StateCallback) {
   }
 
   // Initial JSONL correlation
-  correlateAndTail(config, onStateUpdate);
+  correlateAndTail(config, onStateUpdate, onReply);
 
   // Periodic scan for new/changed JSONL sessions
   scanTimer = setInterval(() => {
-    correlateAndTail(config, onStateUpdate);
+    correlateAndTail(config, onStateUpdate, onReply);
   }, SCAN_INTERVAL_MS);
 
   // Periodic tail for live status
   tailTimer = setInterval(() => {
     for (const [, agent] of tracked) {
-      readNewLines(agent, onStateUpdate);
+      readNewLines(agent, onStateUpdate, onReply);
     }
   }, TAIL_INTERVAL_MS);
 }
@@ -191,7 +211,11 @@ function cwdToProjectDir(cwd: string): string {
 }
 
 /** Find JSONL sessions for team members and set up tailing */
-function correlateAndTail(config: TeamConfig, onStateUpdate: StateCallback) {
+function correlateAndTail(
+  config: TeamConfig,
+  onStateUpdate: StateCallback,
+  onReply?: ReplyCallback,
+) {
   // Collect unique project dirs from member cwds
   const projectDirs = new Set<string>();
   for (const member of config.members) {
@@ -235,12 +259,13 @@ function correlateAndTail(config: TeamConfig, onStateUpdate: StateCallback) {
             cacheCreateTokens: 0,
             lastContextUsed: 0,
             actualModel: "",
+            lastReplyText: "",
           };
           tracked.set(config.leadSessionId, agent);
           console.log(
             `[SCANNER] Linked ${leadMember.name} → lead session ${config.leadSessionId.slice(0, 8)}`,
           );
-          readNewLines(agent, onStateUpdate);
+          readNewLines(agent, onStateUpdate, onReply);
           break;
         }
       }
@@ -308,6 +333,7 @@ function correlateAndTail(config: TeamConfig, onStateUpdate: StateCallback) {
         cacheCreateTokens: 0,
         lastContextUsed: 0,
         actualModel: "",
+        lastReplyText: "",
       };
 
       tracked.set(sessionId, agent);
@@ -316,7 +342,7 @@ function correlateAndTail(config: TeamConfig, onStateUpdate: StateCallback) {
       );
 
       // Read recent lines immediately to get current status
-      readNewLines(agent, onStateUpdate);
+      readNewLines(agent, onStateUpdate, onReply);
     }
   }
 }
@@ -354,7 +380,11 @@ function identifyAgent(
   return null;
 }
 
-function readNewLines(agent: TrackedAgent, onStateUpdate: StateCallback) {
+function readNewLines(
+  agent: TrackedAgent,
+  onStateUpdate: StateCallback,
+  onReply?: ReplyCallback,
+) {
   try {
     const stat = statSync(agent.filePath);
     if (stat.size <= agent.fileOffset) return;
@@ -377,6 +407,12 @@ function readNewLines(agent: TrackedAgent, onStateUpdate: StateCallback) {
         const rec = JSON.parse(line);
         const changed = processRecord(agent, rec);
         if (changed) stateChanged = true;
+
+        // Emit reply when assistant produces text output
+        if (onReply && agent.lastReplyText) {
+          onReply(agent.agentName, agent.lastReplyText);
+          agent.lastReplyText = "";
+        }
       } catch {}
     }
 
@@ -466,6 +502,7 @@ function processRecord(
       const text = ((texts[0] as Record<string, unknown>).text as string) || "";
       agent.task = text.slice(0, 80).replace(/\n/g, " ") || "Thinking...";
       agent.lastActiveTask = agent.task;
+      agent.lastReplyText = text;
       return true;
     }
   }
