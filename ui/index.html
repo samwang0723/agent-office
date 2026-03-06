@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Agent Office — Claude Code</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323:wght@400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Mono:wght@400&family=Press+Start+2P&family=VT323:wght@400&display=swap');
 
 :root {
   --bg: #0d0f1a;
@@ -21,7 +21,7 @@
   --dev:  #6eff9e;
   --qa:   #ffdd6e;
   --sec:  #ff8c6e;
-  --font-body: 'VT323', monospace;
+  --font-body: 'VT323', 'Noto Sans Mono', monospace;
   --font-heading: 'Press Start 2P', monospace;
   --font-size-base: 16px;
 }
@@ -548,8 +548,8 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:1000;
         <label class="settings-label" data-i18n="settings.font">FONT</label>
         <select class="settings-select" id="set-font" onchange="onSettingChange()">
           <option value="VT323">VT323 (default)</option>
-          <option value="monospace">System Mono</option>
-          <option value="'Courier New', monospace">Courier New</option>
+          <option value="monospace, 'Noto Sans Mono'">System Mono</option>
+          <option value="'Courier New', 'Noto Sans Mono', monospace">Courier New</option>
         </select>
       </div>
       <div class="settings-row">
@@ -780,7 +780,7 @@ function saveSettings(s) {
 
 function applySettings(s) {
   const root = document.documentElement;
-  const fontVal = s.font.includes(',') ? s.font : `'${s.font}', monospace`;
+  const fontVal = s.font.includes(',') ? s.font : `'${s.font}', 'Noto Sans Mono', monospace`;
   root.style.setProperty('--font-body', fontVal);
   root.style.setProperty('--font-size-base', s.fontSize + 'px');
   currentLang = s.lang;
