@@ -21,15 +21,18 @@
   --dev:  #6eff9e;
   --qa:   #ffdd6e;
   --sec:  #ff8c6e;
+  --font-body: 'VT323', monospace;
+  --font-heading: 'Press Start 2P', monospace;
+  --font-size-base: 16px;
 }
 *{box-sizing:border-box;margin:0;padding:0;image-rendering:pixelated}
-body{background:var(--bg);font-family:'VT323',monospace;color:var(--text);
-     overflow:hidden;height:100vh;width:100vw;display:flex;flex-direction:column}
+body{background:var(--bg);font-family:var(--font-body);color:var(--text);
+     font-size:var(--font-size-base);overflow:hidden;height:100vh;width:100vw;display:flex;flex-direction:column}
 
 /* ── HEADER ─────────────────────────────────────────────────── */
 header{background:#090b14;border-bottom:2px solid var(--border);padding:7px 16px;
        display:flex;align-items:center;justify-content:space-between;flex-shrink:0;z-index:100}
-.logo{font-family:'Press Start 2P',monospace;font-size:13px;color:var(--accent);
+.logo{font-family:var(--font-heading);font-size:13px;color:var(--accent);
       text-shadow:0 0 10px #4fc3f788}
 .logo em{color:var(--pm);font-style:normal}
 .logo .version{font-size:9px;color:#556;margin-left:6px;vertical-align:middle}
@@ -83,7 +86,7 @@ header{background:#090b14;border-bottom:2px solid var(--border);padding:7px 16px
 @keyframes blocked-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-2px)}75%{transform:translateX(2px)}}
 
 /* ── NAMETAG & STATUS ───────────────────────────────────────── */
-.nametag{font-family:'Press Start 2P',monospace;font-size:9px;padding:3px 7px;
+.nametag{font-family:var(--font-heading);font-size:9px;padding:3px 7px;
          border-radius:2px;margin-top:4px;white-space:nowrap;border:1px solid currentColor;opacity:.9}
 .sbadge{font-size:16px;padding:2px 8px;border-radius:2px;margin-top:2px;
         background:#ffffff10;color:#aaa;white-space:nowrap}
@@ -113,7 +116,7 @@ header{background:#090b14;border-bottom:2px solid var(--border);padding:7px 16px
 .unread-badge{position:absolute;top:-6px;right:-6px;background:#ff5252;
               border-radius:50%;width:16px;height:16px;font-size:10px;
               display:flex;align-items:center;justify-content:center;
-              font-family:'Press Start 2P',monospace;z-index:30;
+              font-family:var(--font-heading);z-index:30;
               box-shadow:0 0 6px #ff5252;animation:pulse .8s infinite}
 
 /* ── PARTICLES ───────────────────────────────────────────────── */
@@ -150,7 +153,7 @@ svg.conns{position:absolute;inset:0;pointer-events:none;z-index:5}
 .acard-hdr{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .role-icon{width:24px;height:24px;border-radius:4px;display:flex;align-items:center;
            justify-content:center;font-size:14px;flex-shrink:0}
-.aname{font-family:'Press Start 2P',monospace;font-size:10px;flex:1}
+.aname{font-family:var(--font-heading);font-size:10px;flex:1}
 .sdot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
 .sdot.working{background:#4caf50;box-shadow:0 0 4px #4caf50;animation:pulse 1s infinite}
 .sdot.thinking{background:#ffdd6e;box-shadow:0 0 4px #ffdd6e;animation:pulse 2s infinite}
@@ -175,7 +178,7 @@ svg.conns{position:absolute;inset:0;pointer-events:none;z-index:5}
 .chat-hdr{padding:8px 12px;background:#090b14;border-bottom:1px solid var(--border);
           display:flex;align-items:center;gap:8px;flex-shrink:0}
 .chat-hdr-icon{font-size:16px}
-.chat-hdr-name{font-family:'Press Start 2P',monospace;font-size:10px}
+.chat-hdr-name{font-family:var(--font-heading);font-size:10px}
 .chat-hdr-close{margin-left:auto;cursor:pointer;color:#445;font-size:16px;
                 padding:2px 6px;border-radius:3px;transition:color .15s}
 .chat-hdr-close:hover{color:#889}
@@ -192,11 +195,11 @@ svg.conns{position:absolute;inset:0;pointer-events:none;z-index:5}
 .chat-input-row{display:flex;gap:6px;padding:8px;background:#090b14;
                 border-top:1px solid var(--border);flex-shrink:0}
 .chat-input{flex:1;background:#0d0f1a;border:1px solid var(--border);border-radius:3px;
-            color:var(--text);font-family:'VT323',monospace;font-size:18px;
+            color:var(--text);font-family:var(--font-body);font-size:18px;
             padding:5px 8px;outline:none;transition:border-color .15s}
 .chat-input:focus{border-color:var(--accent)}
 .chat-send{background:#4fc3f715;border:1px solid #4fc3f740;color:var(--accent);
-           font-family:'Press Start 2P',monospace;font-size:10px;padding:8px 12px;
+           font-family:var(--font-heading);font-size:10px;padding:8px 12px;
            cursor:pointer;border-radius:3px;transition:all .15s;white-space:nowrap;
            display:inline-flex;align-items:center;gap:4px;line-height:1}
 .chat-send:hover{background:#4fc3f725}
@@ -207,7 +210,7 @@ svg.conns{position:absolute;inset:0;pointer-events:none;z-index:5}
            font-size:16px;line-height:1.4}
 .log-time{color:#334;flex-shrink:0;font-size:14px;padding-top:1px}
 .log-text{color:#667;flex:1}
-.log-tag{font-family:'Press Start 2P',monospace;font-size:9px;padding:2px 5px;border-radius:2px}
+.log-tag{font-family:var(--font-heading);font-size:9px;padding:2px 5px;border-radius:2px}
 
 /* ── TICKER ──────────────────────────────────────────────────── */
 .ticker{background:#090b14;border-top:1px solid var(--border);overflow:hidden;
@@ -225,13 +228,45 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:1000;
 .bridge-bar{background:#090b14;border-bottom:1px solid var(--border);padding:6px 16px;
             display:flex;align-items:center;gap:10px;font-size:16px;flex-shrink:0}
 .bridge-url{background:#0d0f1a;border:1px solid var(--border);border-radius:3px;
-            color:#6eff9e;font-family:'VT323',monospace;font-size:16px;padding:4px 8px;
+            color:#6eff9e;font-family:var(--font-body);font-size:16px;padding:4px 8px;
             outline:none;width:200px;transition:border-color .15s}
 .bridge-url:focus{border-color:var(--accent)}
 .bridge-btn{background:#4fc3f710;border:1px solid #4fc3f730;color:var(--accent);
-            font-family:'Press Start 2P',monospace;font-size:10px;padding:6px 10px;
+            font-family:var(--font-heading);font-size:10px;padding:6px 10px;
             cursor:pointer;border-radius:3px;transition:all .15s}
 .bridge-btn:hover{background:#4fc3f720}
+
+/* ── SETTINGS ────────────────────────────────────────────── */
+.settings-btn{position:fixed;bottom:32px;left:16px;z-index:1001;
+  background:var(--panel-bg);border:1px solid var(--border);color:var(--accent);
+  font-family:var(--font-heading);font-size:10px;padding:8px 10px;cursor:pointer;
+  border-radius:2px;transition:all .15s;line-height:1}
+.settings-btn:hover{background:#4fc3f715;border-color:var(--accent);box-shadow:0 0 8px #4fc3f733}
+.settings-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:2000;
+  display:flex;align-items:center;justify-content:center}
+.settings-dialog{background:var(--panel-bg);border:2px solid var(--border);border-radius:2px;
+  width:320px;max-width:90vw;box-shadow:0 4px 24px #000a}
+.settings-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;
+  border-bottom:1px solid var(--border);background:#090b14}
+.settings-title{font-family:var(--font-heading);font-size:11px;color:var(--accent);
+  text-shadow:0 0 8px #4fc3f744}
+.settings-close{cursor:pointer;color:#445;font-size:16px;padding:2px 6px;transition:color .15s}
+.settings-close:hover{color:#889}
+.settings-body{padding:14px}
+.settings-row{margin-bottom:14px}
+.settings-label{display:block;font-family:var(--font-heading);font-size:9px;color:#778;
+  margin-bottom:6px;letter-spacing:1px}
+.settings-select{width:100%;background:#0d0f1a;border:1px solid var(--border);border-radius:3px;
+  color:var(--text);font-family:var(--font-body);font-size:16px;padding:6px 8px;outline:none;
+  cursor:pointer;transition:border-color .15s}
+.settings-select:focus{border-color:var(--accent)}
+.settings-size-row{display:flex;align-items:center;gap:10px}
+.settings-size-btn{background:#4fc3f710;border:1px solid #4fc3f730;color:var(--accent);
+  font-family:var(--font-heading);font-size:12px;width:28px;height:28px;cursor:pointer;
+  border-radius:2px;transition:all .15s}
+.settings-size-btn:hover{background:#4fc3f720}
+.settings-size-val{font-family:var(--font-heading);font-size:12px;color:var(--text);
+  min-width:24px;text-align:center}
 </style>
 </head>
 <body>
@@ -456,8 +491,8 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:1000;
   <!-- SIDE PANEL -->
   <div class="panel">
     <div class="tabs">
-      <div class="tab active" id="tab-agents-btn" onclick="setTab('agents',this)">AGENTS</div>
-      <div class="tab" id="tab-log-btn" onclick="setTab('log',this)">LOG <span id="log-badge" class="badge" style="display:none"></span></div>
+      <div class="tab active" id="tab-agents-btn" onclick="setTab('agents',this)" data-i18n="header.agents">AGENTS</div>
+      <div class="tab" id="tab-log-btn" onclick="setTab('log',this)"><span data-i18n="header.log">LOG</span> <span id="log-badge" class="badge" style="display:none"></span></div>
     </div>
     <div class="pcontent" id="tab-agents"></div>
     <div class="pcontent" id="tab-log" style="display:none"></div>
@@ -481,6 +516,54 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:1000;
 </div>
 
 <div class="ticker"><div class="ticker-track" id="ticker"></div></div>
+
+<button class="settings-btn" onclick="openSettings()" title="Settings">
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="display:block">
+    <rect x="6" y="0" width="4" height="2"/><rect x="6" y="14" width="4" height="2"/>
+    <rect x="0" y="6" width="2" height="4"/><rect x="14" y="6" width="2" height="4"/>
+    <rect x="2" y="2" width="2" height="2"/><rect x="12" y="2" width="2" height="2"/>
+    <rect x="2" y="12" width="2" height="2"/><rect x="12" y="12" width="2" height="2"/>
+    <rect x="4" y="4" width="8" height="8"/><rect x="6" y="6" width="4" height="4" fill="#0d0f1a"/>
+  </svg>
+</button>
+
+<div class="settings-overlay" id="settings-overlay" style="display:none">
+  <div class="settings-dialog">
+    <div class="settings-hdr">
+      <span class="settings-title" data-i18n="settings.title">SETTINGS</span>
+      <span class="settings-close" onclick="closeSettings()">x</span>
+    </div>
+    <div class="settings-body">
+      <div class="settings-row">
+        <label class="settings-label" data-i18n="settings.language">LANGUAGE</label>
+        <select class="settings-select" id="set-lang" onchange="onSettingChange()">
+          <option value="en">English</option>
+          <option value="zh-TW">繁體中文</option>
+          <option value="zh-CN">简体中文</option>
+          <option value="ja">日本語</option>
+          <option value="ko">한국어</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <label class="settings-label" data-i18n="settings.font">FONT</label>
+        <select class="settings-select" id="set-font" onchange="onSettingChange()">
+          <option value="VT323">VT323 (default)</option>
+          <option value="Press Start 2P">Press Start 2P</option>
+          <option value="monospace">System Mono</option>
+          <option value="'Courier New', monospace">Courier New</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <label class="settings-label" data-i18n="settings.fontSize">FONT SIZE</label>
+        <div class="settings-size-row">
+          <button class="settings-size-btn" onclick="adjustFontSize(-1)">-</button>
+          <span class="settings-size-val" id="set-size-val">16</span>
+          <button class="settings-size-btn" onclick="adjustFontSize(1)">+</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script>
 // ════════════════════════════════════════════════════════
@@ -509,6 +592,195 @@ let unread = {}; // agentId → count
 let selectedAgent = null;
 let ws = null;
 let bridgeUrl = 'ws://localhost:3456';
+
+// ════════════════════════════════════════════════════════
+// I18N & SETTINGS
+// ════════════════════════════════════════════════════════
+const I18N = {
+  en: {
+    'settings.title': 'SETTINGS',
+    'settings.language': 'LANGUAGE',
+    'settings.font': 'FONT',
+    'settings.fontSize': 'FONT SIZE',
+    'header.agents': 'AGENTS',
+    'header.log': 'LOG',
+    'chat.placeholder': 'Message {agent}...',
+    'chat.send': 'SEND \u25B6',
+    'chat.empty': 'No messages yet. Say something!',
+    'bridge.connect': 'CONNECT',
+    'bridge.team': 'TEAM',
+    'bridge.selectTeam': '\u2014 select team \u2014',
+    'status.connected': 'CONNECTED',
+    'status.disconnected': 'DISCONNECTED',
+    'status.connecting': 'connecting\u2026',
+    'status.error': 'ERROR',
+  },
+  'zh-TW': {
+    'settings.title': '\u8A2D\u5B9A',
+    'settings.language': '\u8A9E\u8A00',
+    'settings.font': '\u5B57\u9AD4',
+    'settings.fontSize': '\u5B57\u9AD4\u5927\u5C0F',
+    'header.agents': '\u4EE3\u7406',
+    'header.log': '\u65E5\u8A8C',
+    'chat.placeholder': '\u50B3\u8A0A\u606F\u7D66 {agent}...',
+    'chat.send': '\u767C\u9001 \u25B6',
+    'chat.empty': '\u9084\u6C92\u6709\u8A0A\u606F\uFF0C\u8AAA\u9EDE\u4EC0\u9EBC\u5427\uFF01',
+    'bridge.connect': '\u9023\u7DDA',
+    'bridge.team': '\u5718\u968A',
+    'bridge.selectTeam': '\u2014 \u9078\u64C7\u5718\u968A \u2014',
+    'status.connected': '\u5DF2\u9023\u7DDA',
+    'status.disconnected': '\u5DF2\u65B7\u7DDA',
+    'status.connecting': '\u9023\u7DDA\u4E2D\u2026',
+    'status.error': '\u932F\u8AA4',
+  },
+  'zh-CN': {
+    'settings.title': '\u8BBE\u7F6E',
+    'settings.language': '\u8BED\u8A00',
+    'settings.font': '\u5B57\u4F53',
+    'settings.fontSize': '\u5B57\u4F53\u5927\u5C0F',
+    'header.agents': '\u4EE3\u7406',
+    'header.log': '\u65E5\u5FD7',
+    'chat.placeholder': '\u7ED9 {agent} \u53D1\u6D88\u606F...',
+    'chat.send': '\u53D1\u9001 \u25B6',
+    'chat.empty': '\u8FD8\u6CA1\u6709\u6D88\u606F\uFF0C\u8BF4\u70B9\u4EC0\u4E48\u5427\uFF01',
+    'bridge.connect': '\u8FDE\u63A5',
+    'bridge.team': '\u56E2\u961F',
+    'bridge.selectTeam': '\u2014 \u9009\u62E9\u56E2\u961F \u2014',
+    'status.connected': '\u5DF2\u8FDE\u63A5',
+    'status.disconnected': '\u5DF2\u65AD\u5F00',
+    'status.connecting': '\u8FDE\u63A5\u4E2D\u2026',
+    'status.error': '\u9519\u8BEF',
+  },
+  ja: {
+    'settings.title': '\u8A2D\u5B9A',
+    'settings.language': '\u8A00\u8A9E',
+    'settings.font': '\u30D5\u30A9\u30F3\u30C8',
+    'settings.fontSize': '\u30D5\u30A9\u30F3\u30C8\u30B5\u30A4\u30BA',
+    'header.agents': '\u30A8\u30FC\u30B8\u30A7\u30F3\u30C8',
+    'header.log': '\u30ED\u30B0',
+    'chat.placeholder': '{agent} \u306B\u30E1\u30C3\u30BB\u30FC\u30B8...',
+    'chat.send': '\u9001\u4FE1 \u25B6',
+    'chat.empty': '\u30E1\u30C3\u30BB\u30FC\u30B8\u306F\u307E\u3060\u3042\u308A\u307E\u305B\u3093',
+    'bridge.connect': '\u63A5\u7D9A',
+    'bridge.team': '\u30C1\u30FC\u30E0',
+    'bridge.selectTeam': '\u2014 \u30C1\u30FC\u30E0\u3092\u9078\u629E \u2014',
+    'status.connected': '\u63A5\u7D9A\u6E08\u307F',
+    'status.disconnected': '\u5207\u65AD',
+    'status.connecting': '\u63A5\u7D9A\u4E2D\u2026',
+    'status.error': '\u30A8\u30E9\u30FC',
+  },
+  ko: {
+    'settings.title': '\uC124\uC815',
+    'settings.language': '\uC5B8\uC5B4',
+    'settings.font': '\uAE00\uAF34',
+    'settings.fontSize': '\uAE00\uAF34 \uD06C\uAE30',
+    'header.agents': '\uC5D0\uC774\uC804\uD2B8',
+    'header.log': '\uB85C\uADF8',
+    'chat.placeholder': '{agent}\uC5D0\uAC8C \uBA54\uC2DC\uC9C0...',
+    'chat.send': '\uBCF4\uB0B4\uAE30 \u25B6',
+    'chat.empty': '\uC544\uC9C1 \uBA54\uC2DC\uC9C0\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4',
+    'bridge.connect': '\uC5F0\uACB0',
+    'bridge.team': '\uD300',
+    'bridge.selectTeam': '\u2014 \uD300 \uC120\uD0DD \u2014',
+    'status.connected': '\uC5F0\uACB0\uB428',
+    'status.disconnected': '\uC5F0\uACB0 \uB04A\uAE40',
+    'status.connecting': '\uC5F0\uACB0 \uC911\u2026',
+    'status.error': '\uC624\uB958',
+  },
+};
+
+let currentLang = 'en';
+
+function t(key, vars) {
+  const str = (I18N[currentLang] || I18N.en)[key] || I18N.en[key] || key;
+  if (!vars) return str;
+  return str.replace(/\{(\w+)\}/g, (_, k) => vars[k] || '');
+}
+
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.getAttribute('data-i18n'));
+  });
+  // Update tabs
+  const tabAgents = document.getElementById('tab-agents-btn');
+  const tabLog = document.getElementById('tab-log-btn');
+  if (tabAgents) tabAgents.childNodes[0].textContent = t('header.agents');
+  if (tabLog) tabLog.childNodes[0].textContent = t('header.log') + ' ';
+  // Update bridge bar
+  const connectBtn = document.querySelector('.bridge-btn');
+  if (connectBtn) connectBtn.textContent = t('bridge.connect');
+  // Update chat send button
+  const sendBtn = document.getElementById('chat-send-btn');
+  if (sendBtn) sendBtn.textContent = t('chat.send');
+  // Update chat placeholder
+  const chatInput = document.getElementById('chat-input');
+  if (chatInput && selectedAgent) {
+    chatInput.placeholder = t('chat.placeholder', {agent: selectedAgent});
+  }
+}
+
+const SETTINGS_KEY = 'agent-office-settings';
+const DEFAULT_SETTINGS = { lang: 'en', font: 'VT323', fontSize: 16 };
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    return raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : { ...DEFAULT_SETTINGS };
+  } catch { return { ...DEFAULT_SETTINGS }; }
+}
+
+function saveSettings(s) {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch {}
+}
+
+function applySettings(s) {
+  const root = document.documentElement;
+  const fontVal = s.font.includes(',') ? s.font : `'${s.font}', monospace`;
+  root.style.setProperty('--font-body', fontVal);
+  root.style.setProperty('--font-size-base', s.fontSize + 'px');
+  currentLang = s.lang;
+  applyI18n();
+}
+
+function openSettings() {
+  const s = loadSettings();
+  document.getElementById('set-lang').value = s.lang;
+  document.getElementById('set-font').value = s.font;
+  document.getElementById('set-size-val').textContent = s.fontSize;
+  document.getElementById('settings-overlay').style.display = 'flex';
+}
+
+function closeSettings() {
+  document.getElementById('settings-overlay').style.display = 'none';
+}
+
+function getCurrentSettingsFromUI() {
+  return {
+    lang: document.getElementById('set-lang').value,
+    font: document.getElementById('set-font').value,
+    fontSize: parseInt(document.getElementById('set-size-val').textContent, 10),
+  };
+}
+
+function onSettingChange() {
+  const s = getCurrentSettingsFromUI();
+  saveSettings(s);
+  applySettings(s);
+}
+
+function adjustFontSize(delta) {
+  const el = document.getElementById('set-size-val');
+  const current = parseInt(el.textContent, 10);
+  const next = Math.max(12, Math.min(24, current + delta));
+  el.textContent = next;
+  onSettingChange();
+}
+
+// Close settings on overlay click
+document.addEventListener('click', e => {
+  const overlay = document.getElementById('settings-overlay');
+  if (e.target === overlay) closeSettings();
+});
 
 // ════════════════════════════════════════════════════════
 // WEBSOCKET
@@ -1232,7 +1504,10 @@ document.getElementById('chat-input').addEventListener('keydown', e => {
 });
 
 document.addEventListener('keydown', e => {
-  if (e.key==='Escape') closeChat();
+  if (e.key==='Escape') {
+    if (document.getElementById('settings-overlay').style.display !== 'none') closeSettings();
+    else closeChat();
+  }
 });
 
 // ── Chat panel resize drag ──
@@ -1399,6 +1674,10 @@ function updateEarthCycle() {
 }
 updateEarthCycle();
 setInterval(updateEarthCycle, 60000); // update every minute
+
+// Load and apply saved settings
+const _savedSettings = loadSettings();
+applySettings(_savedSettings);
 
 // Auto-connect WebSocket
 connectWS();
