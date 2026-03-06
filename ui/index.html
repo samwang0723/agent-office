@@ -32,6 +32,7 @@ header{background:#090b14;border-bottom:2px solid var(--border);padding:7px 16px
 .logo{font-family:'Press Start 2P',monospace;font-size:13px;color:var(--accent);
       text-shadow:0 0 10px #4fc3f788}
 .logo em{color:var(--pm);font-style:normal}
+.logo .version{font-size:9px;color:#556;margin-left:6px;vertical-align:middle}
 .hright{display:flex;align-items:center;gap:14px;font-size:18px;color:#556}
 .ws-dot{width:7px;height:7px;border-radius:50%;background:#444;
         box-shadow:none;transition:all .3s;display:inline-block;margin-right:4px}
@@ -236,7 +237,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:1000;
 <body>
 
 <header>
-  <div class="logo">AGENT<em>OFFICE</em></div>
+  <div class="logo">AGENT<em>OFFICE</em> <span class="version">v0.1.0</span></div>
   <div class="hright">
     <span><span class="ws-dot" id="ws-dot"></span><span id="ws-label">DISCONNECTED</span></span>
     <span id="clock">00:00:00</span>
