@@ -8,17 +8,17 @@
  *   bridge --[fs.watch]----> pushes state via WebSocket --> UI
  */
 
-import { watch } from "fs";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { join } from "path";
+import { watch } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import {
+  getTeamConfig,
+  listTeams,
   startScanner,
   stopScanner,
-  listTeams,
-  getTeamConfig
 } from "./jsonl-scanner";
 
-const PORT = 3456;
+const PORT = Number(process.env.PORT) || 3456;
 const ROOT_DIR = join(import.meta.dir, "..");
 const DATA_DIR = join(ROOT_DIR, "data");
 const INBOX_DIR = join(DATA_DIR, "inbox");
@@ -70,13 +70,13 @@ interface BridgeLog {
 let activeTeamName: string | null = null;
 
 // ─── WebSocket clients ───────────────────────────────────────────────────────
-const clients = new Set<ServerWebSocket<unknown>>();
+const clients = new Set<import("bun").ServerWebSocket<unknown>>();
 
 function broadcast(event: string, data: unknown) {
   const payload = JSON.stringify({
     event,
     data,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
   for (const ws of clients) {
     try {
@@ -96,14 +96,14 @@ function readState(): AgentState[] {
     return parsed;
   } catch (e) {
     // Backup corrupted file before overwriting
-    const backupFile = STATE_FILE + `.backup-${Date.now()}`;
+    const backupFile = `${STATE_FILE}.backup-${Date.now()}`;
     try {
       if (existsSync(STATE_FILE)) {
         writeFileSync(backupFile, readFileSync(STATE_FILE));
         console.error(`[STATE] Corrupted state backed up to ${backupFile}`);
       }
     } catch {}
-    console.error(`[STATE] Error reading state, resetting to defaults:`, e);
+    console.error("[STATE] Error reading state, resetting to defaults:", e);
     writeFileSync(STATE_FILE, JSON.stringify(DEFAULT_STATE, null, 2));
     return [...DEFAULT_STATE];
   }
@@ -120,7 +120,7 @@ function inferRole(agentId: string): string {
     arch: "architect",
     dev: "dev",
     qa: "qa",
-    sec: "security"
+    sec: "security",
   };
   return roleMap[prefix] || "dev";
 }
@@ -128,7 +128,7 @@ function inferRole(agentId: string): string {
 function ensureAgent(
   state: AgentState[],
   agentId: string,
-  fields?: Partial<AgentState>
+  fields?: Partial<AgentState>,
 ): number {
   const idx = state.findIndex((a) => a.id === agentId);
   if (idx >= 0) return idx;
@@ -142,7 +142,7 @@ function ensureAgent(
     task: "Registered dynamically",
     progress: 0,
     lastUpdated: new Date().toISOString(),
-    ...fields
+    ...fields,
   };
   state.push(newAgent);
   console.log(`[STATE] Auto-registered new agent: ${agentId} (role: ${role})`);
@@ -155,7 +155,7 @@ function updateAgentState(agentId: string, update: Partial<AgentState>) {
   state[idx] = {
     ...state[idx],
     ...update,
-    lastUpdated: new Date().toISOString()
+    lastUpdated: new Date().toISOString(),
   };
   writeState(state);
   broadcast("state_update", state);
@@ -163,18 +163,18 @@ function updateAgentState(agentId: string, update: Partial<AgentState>) {
     timestamp: new Date().toISOString(),
     type: "state_update",
     agentId,
-    data: update
+    data: update,
   });
 }
 
 function appendLog(entry: BridgeLog) {
-  const line = JSON.stringify(entry) + "\n";
+  const line = `${JSON.stringify(entry)}\n`;
   try {
     const existing = existsSync(LOG_FILE) ? readFileSync(LOG_FILE, "utf8") : "";
     const lines = existing.split("\n").filter(Boolean);
     lines.push(line.trim());
     // Keep last 500 log lines
-    writeFileSync(LOG_FILE, lines.slice(-500).join("\n") + "\n");
+    writeFileSync(LOG_FILE, `${lines.slice(-500).join("\n")}\n`);
   } catch {}
 }
 
@@ -186,7 +186,7 @@ function writeInbox(agentId: string, message: string, from = "user") {
     from,
     message,
     timestamp: new Date().toISOString(),
-    read: false
+    read: false,
   };
 
   const inboxFile = join(INBOX_DIR, `${agentId}.json`);
@@ -203,13 +203,13 @@ function writeInbox(agentId: string, message: string, from = "user") {
     timestamp: new Date().toISOString(),
     type: "message_in",
     agentId,
-    data: msg
+    data: msg,
   });
 
   // Mark agent as thinking
   updateAgentState(agentId, {
     status: "thinking",
-    task: `Processing: "${message.slice(0, 50)}${message.length > 50 ? "…" : ""}"`
+    task: `Processing: "${message.slice(0, 50)}${message.length > 50 ? "…" : ""}"`,
   });
 
   return msg;
@@ -240,7 +240,7 @@ function clearInbox(agentId: string) {
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type"
+  "Access-Control-Allow-Headers": "Content-Type",
 };
 
 // ─── Resolve team-lead tmux pane at runtime ──────────────────────────────────
@@ -251,7 +251,7 @@ let cachedLeadTeam: string | null = null;
 
 function resolveLeadPane(
   config: { leadSessionId?: string; name: string },
-  member?: { agentType: string } | undefined
+  member?: { agentType: string } | undefined,
 ): string | null {
   if (!member || member.agentType !== "team-lead") return null;
   if (!config.leadSessionId) return null;
@@ -265,20 +265,20 @@ function resolveLeadPane(
       cmd: [
         "bash",
         "-c",
-        `ps aux | grep "${config.leadSessionId}" | grep -v grep | awk '{print $7}' | head -1`
-      ]
+        `ps aux | grep "${config.leadSessionId}" | grep -v grep | awk '{print $7}' | head -1`,
+      ],
     });
     const tty = grep.stdout.toString().trim();
     if (!tty) return null;
 
     // Map TTY to tmux pane
     const panes = Bun.spawnSync({
-      cmd: ["tmux", "list-panes", "-a", "-F", "#{pane_id} #{pane_tty}"]
+      cmd: ["tmux", "list-panes", "-a", "-F", "#{pane_id} #{pane_tty}"],
     });
     const lines = panes.stdout.toString().trim().split("\n");
     for (const line of lines) {
       const [paneId, paneTty] = line.split(" ");
-      if (paneTty && paneTty.endsWith(tty)) {
+      if (paneTty?.endsWith(tty)) {
         cachedLeadPane = paneId;
         cachedLeadTeam = config.name;
         console.log(`[MSG] Resolved team-lead pane: ${paneId} (tty: ${tty})`);
@@ -292,7 +292,7 @@ function resolveLeadPane(
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS }
+    headers: { "Content-Type": "application/json", ...CORS },
   });
 }
 
@@ -321,7 +321,7 @@ async function handleRequest(req: Request): Promise<Response> {
       state[idx] = {
         ...state[idx],
         ...u,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
       };
     }
     writeState(state);
@@ -329,7 +329,7 @@ async function handleRequest(req: Request): Promise<Response> {
     appendLog({
       timestamp: new Date().toISOString(),
       type: "state_update",
-      data: updates
+      data: updates,
     });
     return json({ ok: true });
   }
@@ -361,7 +361,7 @@ async function handleRequest(req: Request): Promise<Response> {
               "-t",
               paneId,
               "-l",
-              body.message
+              body.message,
             ]);
             // Send Enter separately to trigger submission
             const proc = Bun.spawnSync([
@@ -369,16 +369,16 @@ async function handleRequest(req: Request): Promise<Response> {
               "send-keys",
               "-t",
               paneId,
-              "Enter"
+              "Enter",
             ]);
             tmuxSent = proc.exitCode === 0;
             if (tmuxSent) {
               console.log(
-                `[MSG] Sent to ${body.agentId} via tmux pane ${paneId}`
+                `[MSG] Sent to ${body.agentId} via tmux pane ${paneId}`,
               );
             } else {
               console.error(
-                `[MSG] tmux send-keys failed for ${body.agentId}: exit ${proc.exitCode}`
+                `[MSG] tmux send-keys failed for ${body.agentId}: exit ${proc.exitCode}`,
               );
             }
           } catch (e) {
@@ -386,7 +386,7 @@ async function handleRequest(req: Request): Promise<Response> {
           }
         } else {
           console.log(
-            `[MSG] No tmux pane for ${body.agentId} — message saved to inbox only`
+            `[MSG] No tmux pane for ${body.agentId} — message saved to inbox only`,
           );
         }
       }
@@ -398,7 +398,7 @@ async function handleRequest(req: Request): Promise<Response> {
       agentId: body.agentId,
       message: body.message,
       msgId: msg.id,
-      tmuxSent
+      tmuxSent,
     });
     return json({ ok: true, msgId: msg.id, tmuxSent });
   }
@@ -438,14 +438,14 @@ async function handleRequest(req: Request): Promise<Response> {
       updateAgentState(body.agentId, {
         status: (body.status as AgentState["status"]) || "working",
         task: body.task || "",
-        progress: body.progress
+        progress: body.progress,
       });
     }
     appendLog({
       timestamp: new Date().toISOString(),
       type: "agent_reply",
       agentId: body.agentId,
-      data: body
+      data: body,
     });
     return json({ ok: true });
   }
@@ -490,8 +490,8 @@ async function handleRequest(req: Request): Promise<Response> {
         agentType: m.agentType,
         model: m.model,
         isActive: m.isActive,
-        color: m.color
-      }))
+        color: m.color,
+      })),
     });
   }
 
@@ -526,7 +526,7 @@ async function handleRequest(req: Request): Promise<Response> {
       ok: true,
       agents: readState().length,
       clients: clients.size,
-      ts: new Date().toISOString()
+      ts: new Date().toISOString(),
     });
   }
 
@@ -535,7 +535,7 @@ async function handleRequest(req: Request): Promise<Response> {
     const uiFile = join(ROOT_DIR, "ui", "index.html");
     if (existsSync(uiFile)) {
       return new Response(Bun.file(uiFile), {
-        headers: { "Content-Type": "text/html" }
+        headers: { "Content-Type": "text/html" },
       });
     }
     return new Response("UI not found. Put index.html in ui/", { status: 404 });
@@ -577,8 +577,8 @@ const server = Bun.serve({
         JSON.stringify({
           event: "state_update",
           data: readState(),
-          timestamp: new Date().toISOString()
-        })
+          timestamp: new Date().toISOString(),
+        }),
       );
       console.log(`[WS] Client connected (${clients.size} total)`);
     },
@@ -592,8 +592,8 @@ const server = Bun.serve({
         const data = JSON.parse(String(msg));
         if (data.type === "ping") ws.send(JSON.stringify({ type: "pong" }));
       } catch {}
-    }
-  }
+    },
+  },
 });
 
 console.log(`

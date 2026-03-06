@@ -41,10 +41,12 @@ agent-office/
 ## Commands
 
 ```bash
-make help       # Show all available commands
-make server     # Start the bridge server on :3456
-make dev        # Start with watch mode (auto-restart on changes)
-make clean      # Remove runtime data
+make help                # Show all available commands
+make server              # Start the bridge server on :3456
+make server PORT=4000    # Start on a custom port
+make dev                 # Start with watch mode (auto-restart on changes)
+make dev PORT=5000       # Watch mode on a custom port
+make clean               # Remove runtime data
 ```
 
 ## How Agents Integrate
@@ -124,10 +126,17 @@ curl -X POST http://localhost:3456/scan \
 
 Add `AGENT_OFFICE.md` content to your CC agent's system prompt, replacing `$AGENT_ID` with the agent's actual ID (e.g. `dev-1`). The agent will then automatically update status, poll for messages, and reply through the UI.
 
-## Environment Variables
+## Configuration
+
+Copy `.env.sample` to `.env` and adjust as needed:
+
+```bash
+cp .env.sample .env
+```
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `BRIDGE_URL` | `http://localhost:3456` | Used by `agent-client.ts` |
+| `PORT` | `3456` | Bridge server port |
+| `BRIDGE_URL` | `http://localhost:3456` | Used by `agent-client.ts` to connect to the bridge |
 
-Port `3456` is hardcoded in `src/server.ts`.
+Port can also be overridden via Make: `make server PORT=4000`.

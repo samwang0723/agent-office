@@ -11,16 +11,16 @@
  */
 
 import {
-  readFileSync,
-  existsSync,
-  statSync,
-  openSync,
-  readSync,
   closeSync,
-  readdirSync
-} from "fs";
-import { join } from "path";
-import { homedir } from "os";
+  existsSync,
+  openSync,
+  readFileSync,
+  readSync,
+  readdirSync,
+  statSync,
+} from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 const TAIL_INTERVAL_MS = 1000;
 const SCAN_INTERVAL_MS = 3000;
@@ -99,11 +99,9 @@ export function listTeams(): {
         teams.push({
           name: config.name || dir,
           description: config.description,
-          memberCount: config.members?.length || 0
+          memberCount: config.members?.length || 0,
         });
-      } catch {
-        continue;
-      }
+      } catch {}
     }
   } catch {}
   return teams;
@@ -132,7 +130,7 @@ export function startScanner(teamName: string, onStateUpdate: StateCallback) {
   }
 
   console.log(
-    `[SCANNER] Starting for team: ${teamName} (${config.members.length} members)`
+    `[SCANNER] Starting for team: ${teamName} (${config.members.length} members)`,
   );
 
   // Register all members immediately from config (authoritative source)
@@ -145,7 +143,7 @@ export function startScanner(teamName: string, onStateUpdate: StateCallback) {
       status: "idle",
       task: "Registered from team config",
       model: member.model || "unknown",
-      color: member.color
+      color: member.color,
     });
   }
 
@@ -236,11 +234,11 @@ function correlateAndTail(config: TeamConfig, onStateUpdate: StateCallback) {
             cacheReadTokens: 0,
             cacheCreateTokens: 0,
             lastContextUsed: 0,
-            actualModel: ""
+            actualModel: "",
           };
           tracked.set(config.leadSessionId, agent);
           console.log(
-            `[SCANNER] Linked ${leadMember.name} → lead session ${config.leadSessionId.slice(0, 8)}`
+            `[SCANNER] Linked ${leadMember.name} → lead session ${config.leadSessionId.slice(0, 8)}`,
           );
           readNewLines(agent, onStateUpdate);
           break;
@@ -275,7 +273,7 @@ function correlateAndTail(config: TeamConfig, onStateUpdate: StateCallback) {
 
       // Check if we already track this agent name (keep newest session)
       const existingEntry = [...tracked.values()].find(
-        (a) => a.agentName === identity.agentName && a.teamName === config.name
+        (a) => a.agentName === identity.agentName && a.teamName === config.name,
       );
       if (existingEntry) {
         try {
@@ -309,12 +307,12 @@ function correlateAndTail(config: TeamConfig, onStateUpdate: StateCallback) {
         cacheReadTokens: 0,
         cacheCreateTokens: 0,
         lastContextUsed: 0,
-        actualModel: ""
+        actualModel: "",
       };
 
       tracked.set(sessionId, agent);
       console.log(
-        `[SCANNER] Linked ${identity.agentName} → session ${sessionId.slice(0, 8)}`
+        `[SCANNER] Linked ${identity.agentName} → session ${sessionId.slice(0, 8)}`,
       );
 
       // Read recent lines immediately to get current status
@@ -324,7 +322,7 @@ function correlateAndTail(config: TeamConfig, onStateUpdate: StateCallback) {
 }
 
 function identifyAgent(
-  filePath: string
+  filePath: string,
 ): { agentName: string; teamName: string } | null {
   try {
     const stat = statSync(filePath);
@@ -350,7 +348,6 @@ function identifyAgent(
         if (teamMatch && agentMatch) {
           return { agentName: agentMatch[1], teamName: teamMatch[1] };
         }
-        continue;
       }
     }
   } catch {}
@@ -380,9 +377,7 @@ function readNewLines(agent: TrackedAgent, onStateUpdate: StateCallback) {
         const rec = JSON.parse(line);
         const changed = processRecord(agent, rec);
         if (changed) stateChanged = true;
-      } catch {
-        continue;
-      }
+      } catch {}
     }
 
     if (stateChanged) {
@@ -402,7 +397,7 @@ function readNewLines(agent: TrackedAgent, onStateUpdate: StateCallback) {
         tokens: totalTokens > 0 ? totalTokens : undefined,
         contextUsed:
           agent.lastContextUsed > 0 ? agent.lastContextUsed : undefined,
-        contextMax: getContextMax(agent.actualModel || agent.model)
+        contextMax: getContextMax(agent.actualModel || agent.model),
       });
     }
   } catch {}
@@ -410,7 +405,7 @@ function readNewLines(agent: TrackedAgent, onStateUpdate: StateCallback) {
 
 function processRecord(
   agent: TrackedAgent,
-  rec: Record<string, unknown>
+  rec: Record<string, unknown>,
 ): boolean {
   const type = rec.type as string;
   agent.lastActivity = Date.now();
@@ -446,7 +441,7 @@ function processRecord(
     if (!Array.isArray(content)) return false;
 
     const tools = content.filter(
-      (b: Record<string, unknown>) => b.type === "tool_use"
+      (b: Record<string, unknown>) => b.type === "tool_use",
     );
     if (tools.length > 0) {
       const toolName =
@@ -464,7 +459,7 @@ function processRecord(
     }
 
     const texts = content.filter(
-      (b: Record<string, unknown>) => b.type === "text"
+      (b: Record<string, unknown>) => b.type === "text",
     );
     if (texts.length > 0) {
       agent.status = "thinking";
@@ -503,7 +498,7 @@ function processRecord(
 
 function formatToolTask(
   toolName: string,
-  input: Record<string, unknown>
+  input: Record<string, unknown>,
 ): string {
   switch (toolName) {
     case "Read":
@@ -521,13 +516,13 @@ function formatToolTask(
     case "Agent":
       return `Delegating: ${((input.description as string) || "").slice(0, 40)}`;
     case "SendMessage":
-      return `Messaging teammate`;
+      return "Messaging teammate";
     case "TaskCreate":
     case "TaskUpdate":
     case "TaskList":
-      return `Managing tasks`;
+      return "Managing tasks";
     case "TodoWrite":
-      return `Updating TODO list`;
+      return "Updating TODO list";
     default:
       return `Using ${toolName}`;
   }
