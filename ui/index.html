@@ -542,6 +542,60 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:1000;
       <circle cx="200" cy="200" r="156" fill="url(#atmosphere)"/>
       <!-- Slow rotation -->
       <animateTransform attributeName="transform" type="rotate" from="0 200 200" to="15 200 200" dur="60s" repeatCount="indefinite" additive="sum" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1" values="0 200 200;15 200 200;0 200 200"/>
+
+      <!-- ── Orbiting objects ──────────────────────────────── -->
+
+      <!-- Moon (slow orbit, r~190) -->
+      <g opacity="0.7">
+        <animateTransform attributeName="transform" type="rotate" from="0 200 200" to="360 200 200" dur="120s" repeatCount="indefinite"/>
+        <circle cx="200" cy="18" r="10" fill="#bcc4cc"/>
+        <circle cx="197" cy="15" r="2" fill="#99a3ad" opacity="0.6"/>
+        <circle cx="204" cy="20" r="1.5" fill="#99a3ad" opacity="0.5"/>
+        <circle cx="200" cy="22" r="1" fill="#a8b0b8" opacity="0.4"/>
+        <!-- Moon glow -->
+        <circle cx="200" cy="18" r="14" fill="none" stroke="#dde4ee" stroke-width="0.5" opacity="0.3"/>
+      </g>
+
+      <!-- ISS / Space Station (medium orbit, r~170) -->
+      <g opacity="0.6">
+        <animateTransform attributeName="transform" type="rotate" from="60 200 200" to="420 200 200" dur="50s" repeatCount="indefinite"/>
+        <!-- Station body -->
+        <rect x="196" y="34" width="8" height="3" rx="1" fill="#c8d0d8"/>
+        <!-- Solar panels -->
+        <rect x="188" y="34" width="7" height="1.5" fill="#3a6a9f" opacity="0.8"/>
+        <rect x="205" y="34" width="7" height="1.5" fill="#3a6a9f" opacity="0.8"/>
+        <!-- Panel struts -->
+        <line x1="195" y1="35" x2="196" y2="35" stroke="#8898a8" stroke-width="0.5"/>
+        <line x1="204" y1="35" x2="205" y2="35" stroke="#8898a8" stroke-width="0.5"/>
+        <!-- Blinking light -->
+        <circle cx="200" cy="35" r="0.8" fill="#ff4444">
+          <animate attributeName="opacity" values="1;0.2;1" dur="1.5s" repeatCount="indefinite"/>
+        </circle>
+      </g>
+
+      <!-- Satellite (fast orbit, r~165, tilted) -->
+      <g opacity="0.5">
+        <animateTransform attributeName="transform" type="rotate" from="180 200 200" to="540 200 200" dur="35s" repeatCount="indefinite"/>
+        <!-- Satellite body -->
+        <rect x="198" y="38" width="4" height="3" fill="#a0a8b4"/>
+        <!-- Dish -->
+        <path d="M197 39 Q196 37 198 38" stroke="#8090a0" stroke-width="0.8" fill="none"/>
+        <!-- Solar panels -->
+        <rect x="193" y="38.5" width="4.5" height="1" fill="#2a5a8f" opacity="0.7"/>
+        <rect x="202.5" y="38.5" width="4.5" height="1" fill="#2a5a8f" opacity="0.7"/>
+        <!-- Signal pulse -->
+        <circle cx="197" cy="38" r="2" fill="none" stroke="#4fc3f7" stroke-width="0.3" opacity="0">
+          <animate attributeName="r" values="2;6" dur="3s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.4;0" dur="3s" repeatCount="indefinite"/>
+        </circle>
+      </g>
+
+      <!-- Small debris / micro-satellite (fast, tiny) -->
+      <g opacity="0.35">
+        <animateTransform attributeName="transform" type="rotate" from="270 200 200" to="-90 200 200" dur="25s" repeatCount="indefinite"/>
+        <rect x="199" y="42" width="2" height="2" fill="#8898a8" transform="rotate(45 200 43)"/>
+      </g>
+
     </svg>
     <svg class="conns" id="conns"></svg>
   </div>
