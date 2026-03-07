@@ -106,6 +106,17 @@ header{background:#090b14;border-bottom:2px solid var(--border);padding:7px 16px
 .speech::after{content:'';position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);
   border:5px solid transparent;border-top-color:var(--border);border-bottom:none}
 .station:hover .speech{opacity:1;transform:translateX(-50%) translateY(0)}
+/* speech: flip below for top-edge agents */
+.station.speech-below .speech{top:auto;top:100%;margin-top:4px;transform:translateX(-50%) translateY(-6px)}
+.station.speech-below:hover .speech{transform:translateX(-50%) translateY(0)}
+.station.speech-below .speech::after{bottom:auto;top:-5px;border:5px solid transparent;border-bottom-color:var(--border);border-top:none}
+/* speech: shift right for left-edge agents */
+.station.speech-align-right .speech{left:0;transform:translateY(6px)}
+.station.speech-align-right:hover .speech{transform:translateY(0)}
+.station.speech-align-right .speech::after{left:16px;transform:none}
+/* speech: both below + right */
+.station.speech-below.speech-align-right .speech{top:100%;margin-top:4px;left:0;transform:translateY(-6px)}
+.station.speech-below.speech-align-right:hover .speech{transform:translateY(0)}
 
 /* ── TYPING CURSOR ───────────────────────────────────────────── */
 .cur{display:inline-block;width:6px;height:12px;background:currentColor;
@@ -1449,10 +1460,27 @@ function renderAll() {
   if (!compact) {
     setTimeout(drawConns, 80);
     setTimeout(sizeEarth, 100);
+    setTimeout(adjustSpeechBubbles, 120);
   }
   renderAgentPanel();
   renderTicker();
   document.getElementById('acnt').textContent = t('header.agentCount', {count: agents.length});
+}
+
+// ════════════════════════════════════════════════════════
+// SPEECH BUBBLE EDGE DETECTION
+// ════════════════════════════════════════════════════════
+function adjustSpeechBubbles() {
+  const office = document.getElementById('office');
+  const or = office.getBoundingClientRect();
+  office.querySelectorAll('.station').forEach(el => {
+    el.classList.remove('speech-below', 'speech-align-right');
+    const r = el.getBoundingClientRect();
+    // Near top edge: flip speech below
+    if (r.top - or.top < 70) el.classList.add('speech-below');
+    // Near left edge: align speech to right
+    if (r.left - or.left < 150) el.classList.add('speech-align-right');
+  });
 }
 
 // ════════════════════════════════════════════════════════
