@@ -291,7 +291,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:1000;
 .bridge-btn:hover{background:#4fc3f720}
 
 /* ── SETTINGS ────────────────────────────────────────────── */
-.settings-btn{position:fixed;bottom:32px;left:16px;z-index:1001;
+.settings-btn{position:fixed;bottom:32px;left:16px;z-index:899;
   background:var(--panel-bg);border:1px solid var(--border);color:var(--accent);
   font-family:var(--font-heading);font-size:10px;padding:8px 10px;cursor:pointer;
   border-radius:2px;transition:all .15s;line-height:1}
@@ -775,6 +775,7 @@ const I18N = {
     'chat.placeholder': 'Message {agent}...',
     'chat.send': 'SEND \u25B6',
     'chat.empty': 'No messages yet. Say something!',
+    'chat.noTmux': 'Chat not supported — no tmux session',
     'bridge.connect': 'CONNECT',
     'bridge.team': 'TEAM',
     'bridge.selectTeam': '\u2014 select team \u2014',
@@ -801,6 +802,7 @@ const I18N = {
     'chat.placeholder': '\u50B3\u8A0A\u606F\u7D66 {agent}...',
     'chat.send': '\u767C\u9001 \u25B6',
     'chat.empty': '\u9084\u6C92\u6709\u8A0A\u606F\uFF0C\u8AAA\u9EDE\u4EC0\u9EBC\u5427\uFF01',
+    'chat.noTmux': '\u804A\u5929\u4E0D\u652F\u63F4 \u2014 \u7121 tmux \u5DE5\u4F5C\u968E\u6BB5',
     'bridge.connect': '\u9023\u7DDA',
     'bridge.team': '\u5718\u968A',
     'bridge.selectTeam': '\u2014 \u9078\u64C7\u5718\u968A \u2014',
@@ -827,6 +829,7 @@ const I18N = {
     'chat.placeholder': '\u7ED9 {agent} \u53D1\u6D88\u606F...',
     'chat.send': '\u53D1\u9001 \u25B6',
     'chat.empty': '\u8FD8\u6CA1\u6709\u6D88\u606F\uFF0C\u8BF4\u70B9\u4EC0\u4E48\u5427\uFF01',
+    'chat.noTmux': '\u804A\u5929\u4E0D\u652F\u6301 \u2014 \u65E0 tmux \u4F1A\u8BDD',
     'bridge.connect': '\u8FDE\u63A5',
     'bridge.team': '\u56E2\u961F',
     'bridge.selectTeam': '\u2014 \u9009\u62E9\u56E2\u961F \u2014',
@@ -853,6 +856,7 @@ const I18N = {
     'chat.placeholder': '{agent} \u306B\u30E1\u30C3\u30BB\u30FC\u30B8...',
     'chat.send': '\u9001\u4FE1 \u25B6',
     'chat.empty': '\u30E1\u30C3\u30BB\u30FC\u30B8\u306F\u307E\u3060\u3042\u308A\u307E\u305B\u3093',
+    'chat.noTmux': '\u30C1\u30E3\u30C3\u30C8\u975E\u5BFE\u5FDC \u2014 tmux \u30BB\u30C3\u30B7\u30E7\u30F3\u306A\u3057',
     'bridge.connect': '\u63A5\u7D9A',
     'bridge.team': '\u30C1\u30FC\u30E0',
     'bridge.selectTeam': '\u2014 \u30C1\u30FC\u30E0\u3092\u9078\u629E \u2014',
@@ -879,6 +883,7 @@ const I18N = {
     'chat.placeholder': '{agent}\uC5D0\uAC8C \uBA54\uC2DC\uC9C0...',
     'chat.send': '\uBCF4\uB0B4\uAE30 \u25B6',
     'chat.empty': '\uC544\uC9C1 \uBA54\uC2DC\uC9C0\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4',
+    'chat.noTmux': '\uCC44\uD305 \uBBF8\uC9C0\uC6D0 \u2014 tmux \uC138\uC158 \uC5C6\uC74C',
     'bridge.connect': '\uC5F0\uACB0',
     'bridge.team': '\uD300',
     'bridge.selectTeam': '\u2014 \uD300 \uC120\uD0DD \u2014',
@@ -922,10 +927,14 @@ function applyI18n() {
   if (sendBtn) sendBtn.textContent = t('chat.send');
   // Re-render chat messages to translate empty state
   if (selectedAgent) renderChatMessages(selectedAgent);
-  // Update chat placeholder
+  // Update chat placeholder (respect disabled state for non-tmux agents)
   const chatInput = document.getElementById('chat-input');
   if (chatInput && selectedAgent) {
-    chatInput.placeholder = t('chat.placeholder', {agent: selectedAgent});
+    if (chatInput.disabled) {
+      chatInput.placeholder = t('chat.noTmux');
+    } else {
+      chatInput.placeholder = t('chat.placeholder', {agent: selectedAgent});
+    }
   }
   // Update agent count
   const acnt = document.getElementById('acnt');
@@ -1602,11 +1611,23 @@ function openChat(agentId) {
   document.getElementById('chat-icon').textContent = r.emoji;
   document.getElementById('chat-name').textContent = `${agent.name||agentId} (${r.label})`;
   document.getElementById('chat-name').style.color = r.color;
-  document.getElementById('chat-input').placeholder = t('chat.placeholder', {agent: agent.name||agentId});
+  const chatInput = document.getElementById('chat-input');
+  const chatSendBtn = document.getElementById('chat-send-btn');
+  const noTmux = agent.hasTmux === false;
+
+  if (noTmux) {
+    chatInput.placeholder = t('chat.noTmux');
+    chatInput.disabled = true;
+    chatSendBtn.disabled = true;
+  } else {
+    chatInput.placeholder = t('chat.placeholder', {agent: agent.name||agentId});
+    chatInput.disabled = false;
+    chatSendBtn.disabled = false;
+  }
 
   renderChatMessages(agentId);
   renderAll();
-  document.getElementById('chat-input').focus();
+  if (!noTmux) chatInput.focus();
 }
 
 function closeChat() {

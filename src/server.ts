@@ -20,7 +20,7 @@ import {
   startOwnerScanner,
   startScanner,
   stopOwnerScanner,
-  stopScanner,
+  stopScanner
 } from "./jsonl-scanner";
 
 const PORT = Number(process.env.PORT) || 3456;
@@ -53,6 +53,7 @@ interface AgentState {
   model?: string;
   tokens?: number;
   lastUpdated?: string;
+  hasTmux?: boolean;
 }
 
 interface InboxMessage {
@@ -95,7 +96,7 @@ function transitionTo(newMode: ServerMode) {
   if (isSameMode) return;
 
   console.log(
-    `[MODE] ${prev.type}${prev.type === "team" ? `(${prev.name})` : ""} → ${newMode.type}${newMode.type === "team" ? `(${newMode.name})` : ""}`,
+    `[MODE] ${prev.type}${prev.type === "team" ? `(${prev.name})` : ""} → ${newMode.type}${newMode.type === "team" ? `(${newMode.name})` : ""}`
   );
 
   // Stop whatever is currently running
@@ -120,9 +121,9 @@ function transitionTo(newMode: ServerMode) {
           timestamp: new Date().toISOString(),
           type: "agent_reply",
           agentId,
-          data: { reply: reply.slice(0, 200) },
+          data: { reply: reply.slice(0, 200) }
         });
-      },
+      }
     );
   } else if (newMode.type === "owner") {
     writeState([]);
@@ -140,9 +141,9 @@ function transitionTo(newMode: ServerMode) {
             timestamp: new Date().toISOString(),
             type: "agent_reply",
             agentId,
-            data: { reply: reply.slice(0, 200) },
+            data: { reply: reply.slice(0, 200) }
           });
-        },
+        }
       );
     }
   } else {
@@ -153,7 +154,7 @@ function transitionTo(newMode: ServerMode) {
 
   broadcast("mode", {
     mode: newMode.type,
-    team: newMode.type === "team" ? newMode.name : null,
+    team: newMode.type === "team" ? newMode.name : null
   });
 }
 
@@ -164,7 +165,7 @@ function broadcast(event: string, data: unknown) {
   const payload = JSON.stringify({
     event,
     data,
-    timestamp: new Date().toISOString(),
+    timestamp: new Date().toISOString()
   });
   for (const ws of clients) {
     try {
@@ -213,7 +214,7 @@ function inferRole(agentId: string): string {
     arch: "architect",
     dev: "dev",
     qa: "qa",
-    sec: "security",
+    sec: "security"
   };
   return roleMap[prefix] || "dev";
 }
@@ -221,7 +222,7 @@ function inferRole(agentId: string): string {
 function ensureAgent(
   state: AgentState[],
   agentId: string,
-  fields?: Partial<AgentState>,
+  fields?: Partial<AgentState>
 ): number {
   const idx = state.findIndex((a) => a.id === agentId);
   if (idx >= 0) return idx;
@@ -235,7 +236,7 @@ function ensureAgent(
     task: "Registered dynamically",
     progress: 0,
     lastUpdated: new Date().toISOString(),
-    ...fields,
+    ...fields
   };
   state.push(newAgent);
   console.log(`[STATE] Auto-registered new agent: ${agentId} (role: ${role})`);
@@ -258,7 +259,7 @@ function updateAgentState(agentId: string, update: Partial<AgentState>) {
   state[idx] = {
     ...state[idx],
     ...update,
-    lastUpdated: new Date().toISOString(),
+    lastUpdated: new Date().toISOString()
   };
   writeState(state);
   broadcast("state_update", state);
@@ -266,7 +267,7 @@ function updateAgentState(agentId: string, update: Partial<AgentState>) {
     timestamp: new Date().toISOString(),
     type: "state_update",
     agentId,
-    data: update,
+    data: update
   });
 }
 
@@ -289,7 +290,7 @@ function writeInbox(agentId: string, message: string, from = "user") {
     from,
     message,
     timestamp: new Date().toISOString(),
-    read: false,
+    read: false
   };
 
   const inboxFile = join(INBOX_DIR, `${agentId}.json`);
@@ -306,13 +307,13 @@ function writeInbox(agentId: string, message: string, from = "user") {
     timestamp: new Date().toISOString(),
     type: "message_in",
     agentId,
-    data: msg,
+    data: msg
   });
 
   // Mark agent as thinking
   updateAgentState(agentId, {
     status: "thinking",
-    task: `Processing: "${message.slice(0, 50)}${message.length > 50 ? "…" : ""}"`,
+    task: `Processing: "${message.slice(0, 50)}${message.length > 50 ? "…" : ""}"`
   });
 
   return msg;
@@ -343,7 +344,7 @@ function clearInbox(agentId: string) {
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Headers": "Content-Type"
 };
 
 // ─── Resolve team-lead tmux pane at runtime ──────────────────────────────────
@@ -365,14 +366,14 @@ function resolveLeadPane(
     members: { tmuxPaneId?: string; agentType: string }[];
     name: string;
   },
-  member?: { agentType: string } | undefined,
+  member?: { agentType: string } | undefined
 ): string | null {
   if (!member || member.agentType !== "team-lead") return null;
 
   // Return cache if same team and pane still exists
   if (cachedLeadTeam === config.name && cachedLeadPane) {
     const check = Bun.spawnSync({
-      cmd: ["tmux", "display-message", "-t", cachedLeadPane, "-p", ""],
+      cmd: ["tmux", "display-message", "-t", cachedLeadPane, "-p", ""]
     });
     if (check.exitCode === 0) return cachedLeadPane;
     cachedLeadPane = null;
@@ -384,7 +385,7 @@ function resolveLeadPane(
     const teammatePanes = new Set(
       config.members
         .filter((m) => m.tmuxPaneId && m.agentType !== "team-lead")
-        .map((m) => m.tmuxPaneId),
+        .map((m) => m.tmuxPaneId)
     );
 
     if (teammatePanes.size === 0) return null;
@@ -396,8 +397,8 @@ function resolveLeadPane(
         cmd: [
           "bash",
           "-c",
-          `pgrep -f "parent-session-id.*${config.leadSessionId}" | head -1`,
-        ],
+          `pgrep -f "parent-session-id.*${config.leadSessionId}" | head -1`
+        ]
       });
       if (!verify.stdout.toString().trim()) return null;
     }
@@ -411,15 +412,15 @@ function resolveLeadPane(
         "-t",
         samplePaneId,
         "-p",
-        "#{session_name}",
-      ],
+        "#{session_name}"
+      ]
     });
     const teamSession = sessionResult.stdout.toString().trim();
     if (!teamSession) return null;
 
     // The lead pane was created BEFORE teammate panes (TeamCreate spawns after)
     const minTeammatePaneNum = Math.min(
-      ...[...teammatePanes].map((p) => paneIdNum(p ?? "")),
+      ...[...teammatePanes].map((p) => paneIdNum(p ?? ""))
     );
 
     // List all panes in that session (across all windows)
@@ -431,8 +432,8 @@ function resolveLeadPane(
         "-t",
         teamSession,
         "-F",
-        "#{pane_id} #{pane_tty}",
-      ],
+        "#{pane_id} #{pane_tty}"
+      ]
     });
     const lines = panesResult.stdout.toString().trim().split("\n");
 
@@ -454,8 +455,8 @@ function resolveLeadPane(
         cmd: [
           "bash",
           "-c",
-          `ps -t ${ttyShort} -o command= 2>/dev/null | grep -q "claude" && ! ps -t ${ttyShort} -o command= 2>/dev/null | grep "claude" | grep -q "\\-\\-agent-id"`,
-        ],
+          `ps -t ${ttyShort} -o command= 2>/dev/null | grep -q "claude" && ! ps -t ${ttyShort} -o command= 2>/dev/null | grep "claude" | grep -q "\\-\\-agent-id"`
+        ]
       });
       if (check.exitCode === 0) {
         bestPaneId = paneId;
@@ -467,7 +468,7 @@ function resolveLeadPane(
       cachedLeadPane = bestPaneId;
       cachedLeadTeam = config.name;
       console.log(
-        `[MSG] Resolved team-lead pane: ${bestPaneId} (closest before teammate panes)`,
+        `[MSG] Resolved team-lead pane: ${bestPaneId} (closest before teammate panes)`
       );
       return bestPaneId;
     }
@@ -478,7 +479,7 @@ function resolveLeadPane(
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS },
+    headers: { "Content-Type": "application/json", ...CORS }
   });
 }
 
@@ -496,7 +497,7 @@ async function handleRequest(req: Request): Promise<Response> {
     return json({
       mode: currentMode.type,
       team: currentMode.type === "team" ? currentMode.name : null,
-      state: readState(),
+      state: readState()
     });
   }
 
@@ -516,7 +517,7 @@ async function handleRequest(req: Request): Promise<Response> {
       state[idx] = {
         ...state[idx],
         ...u,
-        lastUpdated: new Date().toISOString(),
+        lastUpdated: new Date().toISOString()
       };
     }
     writeState(state);
@@ -524,7 +525,7 @@ async function handleRequest(req: Request): Promise<Response> {
     appendLog({
       timestamp: new Date().toISOString(),
       type: "state_update",
-      data: updates,
+      data: updates
     });
     return json({ ok: true });
   }
@@ -566,14 +567,14 @@ async function handleRequest(req: Request): Promise<Response> {
           "send-keys",
           "-t",
           paneId,
-          "Enter",
+          "Enter"
         ]);
         tmuxSent = proc.exitCode === 0;
         if (tmuxSent) {
           console.log(`[MSG] Sent to ${body.agentId} via tmux pane ${paneId}`);
         } else {
           console.error(
-            `[MSG] tmux send-keys failed for ${body.agentId}: exit ${proc.exitCode}`,
+            `[MSG] tmux send-keys failed for ${body.agentId}: exit ${proc.exitCode}`
           );
         }
       } catch (e) {
@@ -581,7 +582,7 @@ async function handleRequest(req: Request): Promise<Response> {
       }
     } else {
       console.log(
-        `[MSG] No tmux pane for ${body.agentId} — message saved to inbox only`,
+        `[MSG] No tmux pane for ${body.agentId} — message saved to inbox only`
       );
     }
 
@@ -591,7 +592,7 @@ async function handleRequest(req: Request): Promise<Response> {
       agentId: body.agentId,
       message: body.message,
       msgId: msg.id,
-      tmuxSent,
+      tmuxSent
     });
     return json({ ok: true, msgId: msg.id, tmuxSent });
   }
@@ -631,14 +632,14 @@ async function handleRequest(req: Request): Promise<Response> {
       updateAgentState(body.agentId, {
         status: (body.status as AgentState["status"]) || "working",
         task: body.task || "",
-        progress: body.progress,
+        progress: body.progress
       });
     }
     appendLog({
       timestamp: new Date().toISOString(),
       type: "agent_reply",
       agentId: body.agentId,
-      data: body,
+      data: body
     });
     return json({ ok: true });
   }
@@ -678,7 +679,7 @@ async function handleRequest(req: Request): Promise<Response> {
       return json({
         ok: true,
         sessions: readState().length,
-        state: readState(),
+        state: readState()
       });
     }
     transitionTo({ type: "owner" });
@@ -703,8 +704,8 @@ async function handleRequest(req: Request): Promise<Response> {
         agentType: m.agentType,
         model: m.model,
         isActive: m.isActive,
-        color: m.color,
-      })),
+        color: m.color
+      }))
     });
   }
 
@@ -738,7 +739,7 @@ async function handleRequest(req: Request): Promise<Response> {
       ok: true,
       agents: readState().length,
       clients: clients.size,
-      ts: new Date().toISOString(),
+      ts: new Date().toISOString()
     });
   }
 
@@ -747,7 +748,7 @@ async function handleRequest(req: Request): Promise<Response> {
     const uiFile = join(ROOT_DIR, "ui", "index.html");
     if (existsSync(uiFile)) {
       return new Response(Bun.file(uiFile), {
-        headers: { "Content-Type": "text/html" },
+        headers: { "Content-Type": "text/html" }
       });
     }
     return new Response("UI not found. Put index.html in ui/", { status: 404 });
@@ -784,7 +785,7 @@ function checkForTeamChanges() {
     const teams = listTeams();
     broadcast("teams_updated", teams);
     console.log(
-      `[TEAMS] Team list changed — ${teams.length} active team(s): ${teams.map((t) => t.name).join(", ") || "none"}`,
+      `[TEAMS] Team list changed — ${teams.length} active team(s): ${teams.map((t) => t.name).join(", ") || "none"}`
     );
 
     const activeTeamName = getActiveTeamName();
@@ -853,18 +854,18 @@ const server = Bun.serve({
           event: "mode",
           data: {
             mode: currentMode.type,
-            team: currentMode.type === "team" ? currentMode.name : null,
+            team: currentMode.type === "team" ? currentMode.name : null
           },
-          timestamp: new Date().toISOString(),
-        }),
+          timestamp: new Date().toISOString()
+        })
       );
       // Send current state regardless of mode
       ws.send(
         JSON.stringify({
           event: "state_update",
           data: readState(),
-          timestamp: new Date().toISOString(),
-        }),
+          timestamp: new Date().toISOString()
+        })
       );
       console.log(`[WS] Client connected (${clients.size} total)`);
     },
@@ -878,8 +879,8 @@ const server = Bun.serve({
         const data = JSON.parse(String(msg));
         if (data.type === "ping") ws.send(JSON.stringify({ type: "pong" }));
       } catch {}
-    },
-  },
+    }
+  }
 });
 
 console.log(`
@@ -909,7 +910,7 @@ const startupTeams = listTeams();
 if (startupTeams.length > 0) {
   const latest = startupTeams[startupTeams.length - 1];
   console.log(
-    `[STARTUP] Found ${startupTeams.length} team(s) — auto-selecting: ${latest.name}`,
+    `[STARTUP] Found ${startupTeams.length} team(s) — auto-selecting: ${latest.name}`
   );
   transitionTo({ type: "team", name: latest.name });
 } else {

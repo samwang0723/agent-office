@@ -17,7 +17,7 @@ import {
   readFileSync,
   readSync,
   readdirSync,
-  statSync,
+  statSync
 } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -71,6 +71,7 @@ interface TrackedAgent {
   lastContextUsed: number; // input tokens of last turn = current context size
   actualModel: string; // real model from JSONL (may differ from config)
   lastReplyText: string; // assistant text output to forward as chat reply
+  hasTmux: boolean;
 }
 
 type StateCallback = (agentId: string, update: Record<string, unknown>) => void;
@@ -102,7 +103,7 @@ export function listTeams(): {
         teams.push({
           name: config.name || dir,
           description: config.description,
-          memberCount: config.members?.length || 0,
+          memberCount: config.members?.length || 0
         });
       } catch {}
     }
@@ -115,7 +116,7 @@ function isLeadAlive(config: TeamConfig): boolean {
   if (!config.leadSessionId) return false;
   try {
     const result = Bun.spawnSync({
-      cmd: ["pgrep", "-f", config.leadSessionId],
+      cmd: ["pgrep", "-f", config.leadSessionId]
     });
     return result.exitCode === 0;
   } catch {
@@ -141,7 +142,7 @@ export function getTeamConfig(teamName: string): TeamConfig | null {
 export function startScanner(
   teamName: string,
   onStateUpdate: StateCallback,
-  onReply?: ReplyCallback,
+  onReply?: ReplyCallback
 ) {
   const config = getTeamConfig(teamName);
   if (!config) {
@@ -150,7 +151,7 @@ export function startScanner(
   }
 
   console.log(
-    `[SCANNER] Starting for team: ${teamName} (${config.members.length} members)`,
+    `[SCANNER] Starting for team: ${teamName} (${config.members.length} members)`
   );
 
   // Track known member names to detect new joiners
@@ -169,7 +170,7 @@ export function startScanner(
         status: "idle",
         task: "Registered from team config",
         model: member.model || "unknown",
-        color: member.color,
+        color: member.color
       });
       if (initialRegistrationDone) {
         console.log(`[SCANNER] New member joined: ${member.name} (${role})`);
@@ -202,7 +203,7 @@ export function startScanner(
           role: "removed",
           name,
           status: "idle",
-          task: "__removed__",
+          task: "__removed__"
         });
       }
     }
@@ -249,7 +250,7 @@ function cwdToProjectDir(cwd: string): string {
 function correlateAndTail(
   config: TeamConfig,
   onStateUpdate: StateCallback,
-  onReply?: ReplyCallback,
+  onReply?: ReplyCallback
 ) {
   // Collect unique project dirs from member cwds
   const projectDirs = new Set<string>();
@@ -295,10 +296,11 @@ function correlateAndTail(
             lastContextUsed: 0,
             actualModel: "",
             lastReplyText: "",
+            hasTmux: true
           };
           tracked.set(config.leadSessionId, agent);
           console.log(
-            `[SCANNER] Linked ${leadMember.name} → lead session ${config.leadSessionId.slice(0, 8)}`,
+            `[SCANNER] Linked ${leadMember.name} → lead session ${config.leadSessionId.slice(0, 8)}`
           );
           readNewLines(agent, onStateUpdate, onReply);
           break;
@@ -333,7 +335,7 @@ function correlateAndTail(
 
       // Check if we already track this agent name (keep newest session)
       const existingEntry = [...tracked.values()].find(
-        (a) => a.agentName === identity.agentName && a.teamName === config.name,
+        (a) => a.agentName === identity.agentName && a.teamName === config.name
       );
       if (existingEntry) {
         try {
@@ -369,11 +371,12 @@ function correlateAndTail(
         lastContextUsed: 0,
         actualModel: "",
         lastReplyText: "",
+        hasTmux: true
       };
 
       tracked.set(sessionId, agent);
       console.log(
-        `[SCANNER] Linked ${identity.agentName} → session ${sessionId.slice(0, 8)}`,
+        `[SCANNER] Linked ${identity.agentName} → session ${sessionId.slice(0, 8)}`
       );
 
       // Read recent lines immediately to get current status
@@ -383,7 +386,7 @@ function correlateAndTail(
 }
 
 function identifyAgent(
-  filePath: string,
+  filePath: string
 ): { agentName: string; teamName: string } | null {
   try {
     const stat = statSync(filePath);
@@ -418,7 +421,7 @@ function identifyAgent(
 function readNewLines(
   agent: TrackedAgent,
   onStateUpdate: StateCallback,
-  onReply?: ReplyCallback,
+  onReply?: ReplyCallback
 ) {
   try {
     const stat = statSync(agent.filePath);
@@ -469,6 +472,7 @@ function readNewLines(
         contextUsed:
           agent.lastContextUsed > 0 ? agent.lastContextUsed : undefined,
         contextMax: getContextMax(agent.actualModel || agent.model),
+        hasTmux: agent.hasTmux
       });
     }
   } catch {}
@@ -476,7 +480,7 @@ function readNewLines(
 
 function processRecord(
   agent: TrackedAgent,
-  rec: Record<string, unknown>,
+  rec: Record<string, unknown>
 ): boolean {
   const type = rec.type as string;
   agent.lastActivity = Date.now();
@@ -512,7 +516,7 @@ function processRecord(
     if (!Array.isArray(content)) return false;
 
     const tools = content.filter(
-      (b: Record<string, unknown>) => b.type === "tool_use",
+      (b: Record<string, unknown>) => b.type === "tool_use"
     );
     if (tools.length > 0) {
       const toolName =
@@ -530,7 +534,7 @@ function processRecord(
     }
 
     const texts = content.filter(
-      (b: Record<string, unknown>) => b.type === "text",
+      (b: Record<string, unknown>) => b.type === "text"
     );
     if (texts.length > 0) {
       agent.status = "thinking";
@@ -570,7 +574,7 @@ function processRecord(
 
 function formatToolTask(
   toolName: string,
-  input: Record<string, unknown>,
+  input: Record<string, unknown>
 ): string {
   switch (toolName) {
     case "Read":
@@ -658,8 +662,8 @@ export function discoverOwnerSessions(): OwnerSession[] {
       cmd: [
         "bash",
         "-c",
-        "ps -eo pid,tty,command | grep -E '[c]laude' | grep -v -- '--agent-id' | grep -v grep | grep -v chroma | grep -v plugins | grep -v hooks | grep -v uv | grep -v bun",
-      ],
+        "ps -eo pid,tty,command | grep -E '[c]laude' | grep -v -- '--agent-id' | grep -v grep | grep -v chroma | grep -v plugins | grep -v hooks | grep -v uv | grep -v bun"
+      ]
     });
     const lines = result.stdout.toString().trim().split("\n").filter(Boolean);
 
@@ -667,7 +671,7 @@ export function discoverOwnerSessions(): OwnerSession[] {
     const paneMap = new Map<string, string>();
     try {
       const tmuxResult = Bun.spawnSync({
-        cmd: ["tmux", "list-panes", "-a", "-F", "#{pane_tty} #{pane_id}"],
+        cmd: ["tmux", "list-panes", "-a", "-F", "#{pane_tty} #{pane_id}"]
       });
       for (const line of tmuxResult.stdout.toString().trim().split("\n")) {
         const [tty, paneId] = line.split(" ");
@@ -685,7 +689,7 @@ export function discoverOwnerSessions(): OwnerSession[] {
       let cwd = "";
       try {
         const lsofResult = Bun.spawnSync({
-          cmd: ["lsof", "-p", String(pid), "-Fn"],
+          cmd: ["lsof", "-p", String(pid), "-Fn"]
         });
         const lsofOut = lsofResult.stdout.toString();
         const cwdMatch = lsofOut.match(/fcwd\nn(.*)/m);
@@ -703,7 +707,7 @@ export function discoverOwnerSessions(): OwnerSession[] {
         cwd,
         projectName,
         tty: ttyFull,
-        tmuxPane: paneMap.get(ttyFull),
+        tmuxPane: paneMap.get(ttyFull)
       });
     }
   } catch {}
@@ -714,7 +718,7 @@ export function discoverOwnerSessions(): OwnerSession[] {
 export function startOwnerScanner(
   sessions: OwnerSession[],
   onStateUpdate: StateCallback,
-  onReply?: ReplyCallback,
+  onReply?: ReplyCallback
 ) {
   stopOwnerScanner();
 
@@ -729,7 +733,7 @@ export function startOwnerScanner(
         .filter((f) => f.endsWith(".jsonl"))
         .map((f) => ({
           name: f,
-          mtime: statSync(join(projectDir, f)).mtimeMs,
+          mtime: statSync(join(projectDir, f)).mtimeMs
         }))
         .sort((a, b) => b.mtime - a.mtime);
 
@@ -766,6 +770,7 @@ export function startOwnerScanner(
       status: "idle",
       task: session.cwd,
       model: "unknown",
+      hasTmux: !!session.tmuxPane
     });
 
     const agent: TrackedAgent = {
@@ -789,11 +794,12 @@ export function startOwnerScanner(
       lastContextUsed: 0,
       actualModel: "",
       lastReplyText: "",
+      hasTmux: !!session.tmuxPane
     };
 
     ownerTracked.set(sessionId, agent);
     console.log(
-      `[SCANNER] Owner session: ${agentName} → ${sessionId.slice(0, 8)}`,
+      `[SCANNER] Owner session: ${agentName} → ${sessionId.slice(0, 8)}`
     );
     readNewLines(agent, onStateUpdate, onReply);
   }
@@ -825,7 +831,7 @@ export function startOwnerScanner(
           role: "owner",
           name: agent.agentName,
           status: "idle",
-          task: "Session ended",
+          task: "Session ended"
         });
       }
     }
