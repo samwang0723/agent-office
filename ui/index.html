@@ -205,6 +205,49 @@ svg.conns{position:absolute;inset:0;pointer-events:none;z-index:5}
 .chat-send:hover{background:#4fc3f725}
 .chat-send:disabled{opacity:.3;cursor:not-allowed}
 
+/* ── DOCUMENT VIEWER (bottom slide-up over office) ────────────── */
+.doc-overlay{position:fixed;inset:0;background:#00000088;z-index:900;
+             opacity:0;pointer-events:none;transition:opacity .25s;backdrop-filter:blur(2px)}
+.doc-overlay.open{opacity:1;pointer-events:auto}
+.doc-panel{position:fixed;bottom:0;left:5%;right:5%;z-index:901;
+           max-height:70vh;min-height:200px;
+           background:#0d0f1aee;border:1px solid var(--border);
+           border-bottom:none;border-radius:8px 8px 0 0;
+           box-shadow:0 -4px 30px #000000aa,0 0 60px #4fc3f710;
+           transform:translateY(100%);transition:transform .3s ease-out;
+           display:flex;flex-direction:column}
+.doc-panel.open{transform:translateY(0)}
+.doc-hdr{display:flex;align-items:center;gap:10px;padding:10px 16px;
+         background:#090b14cc;border-bottom:1px solid var(--border);flex-shrink:0;
+         border-radius:8px 8px 0 0}
+.doc-hdr-icon{font-size:1.125em}
+.doc-hdr-title{font-family:var(--font-heading);font-size:10px;color:var(--accent)}
+.doc-hdr-from{font-size:0.875em;color:#556}
+.doc-hdr-close{margin-left:auto;cursor:pointer;color:#556;font-size:1.125em;
+               padding:2px 8px;border-radius:3px;transition:color .15s}
+.doc-hdr-close:hover{color:#aab}
+.doc-body{flex:1;overflow-y:auto;padding:20px 28px;font-size:1em;line-height:1.7;
+          color:#ccd;scrollbar-width:thin;scrollbar-color:#2a2d3e transparent}
+.doc-body h1,.doc-body h2,.doc-body h3{color:var(--accent);margin:14px 0 6px;
+                                        font-family:var(--font-heading)}
+.doc-body h1{font-size:14px} .doc-body h2{font-size:12px} .doc-body h3{font-size:10px}
+.doc-body p{margin:6px 0}
+.doc-body strong{color:#eef}
+.doc-body em{color:#aab;font-style:italic}
+.doc-body code{background:#1a1d2e;padding:1px 5px;border-radius:3px;font-size:0.9375em;color:#6eff9e}
+.doc-body pre{background:#0a0c14;border:1px solid var(--border);border-radius:4px;
+              padding:12px 16px;margin:10px 0;overflow-x:auto;font-size:0.875em;line-height:1.5}
+.doc-body pre code{background:none;padding:0;color:#ccd}
+.doc-body table{border-collapse:collapse;width:100%;margin:10px 0;font-size:0.9375em}
+.doc-body th,.doc-body td{border:1px solid var(--border);padding:6px 12px;text-align:left}
+.doc-body th{background:#1a1d2e;color:var(--accent);font-family:var(--font-heading);font-size:9px}
+.doc-body td{color:#aab}
+.doc-body tr:nth-child(even) td{background:#0a0c1488}
+.doc-body ul,.doc-body ol{margin:6px 0 6px 20px}
+.doc-body li{margin:4px 0}
+.doc-body hr{border:none;border-top:1px solid var(--border);margin:14px 0}
+.doc-body blockquote{border-left:3px solid var(--accent);padding-left:12px;margin:8px 0;color:#889}
+
 /* ── LOG ─────────────────────────────────────────────────────── */
 .log-entry{display:flex;gap:8px;padding:5px 0;border-bottom:1px solid #ffffff05;
            font-size:1em;line-height:1.4}
@@ -530,6 +573,17 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:1000;
   </div>
 </div>
 
+<!-- Document viewer slide-up -->
+<div class="doc-overlay" id="doc-overlay" onclick="closeDocViewer()"></div>
+<div class="doc-panel" id="doc-panel">
+  <div class="doc-hdr">
+    <span id="doc-icon">📄</span>
+    <span class="doc-hdr-title" id="doc-title">Document</span>
+    <span class="doc-hdr-close" onclick="closeDocViewer()">✕</span>
+  </div>
+  <div class="doc-body" id="doc-body"></div>
+</div>
+
 <div class="ticker"><div class="ticker-track" id="ticker"></div></div>
 
 <button class="settings-btn" onclick="openSettings()" title="Settings">
@@ -585,6 +639,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:1000;
 // CONFIG & STATE
 // ════════════════════════════════════════════════════════
 const ROLES = {
+  owner:     {label:'BOSS', emoji:'🏢',color:'#ffd700',skin:'#e8c39e',hair:'#1a1a1a',body:'#2a2a3a',legs:'#1a1a2a',female:false},
   lead:      {label:'LEAD', emoji:'👑',color:'#ffffff',skin:'#e8c39e',hair:'#222',body:'#3a3a4a',legs:'#1a1a2a',female:false},
   pm:        {label:'PM',   emoji:'👩‍💼',color:'#ff6eb4',skin:'#f4a261',hair:'#8B4513',body:'#c0396e',legs:'#2d2250',female:true},
   architect: {label:'ARCH', emoji:'👨‍💻',color:'#6ec6ff',skin:'#deb887',hair:'#1a1a1a',body:'#2d5a8e',legs:'#1a2040',female:false},
@@ -888,6 +943,8 @@ function connectWS() {
         addLog(data.agentId, `message sent: "${data.message.slice(0,40)}"`);
       } else if (event === 'teams_updated') {
         handleTeamsUpdated(data);
+      } else if (event === 'owner_sessions') {
+        addLog('system', `Owner mode: ${data} active session(s)`);
       }
     } catch {}
   };
@@ -952,8 +1009,9 @@ function sceneSVG(agent) {
   const r = ROLES[agent.role] || ROLES.dev;
   const isIdle = (agent.status || 'idle') === 'idle';
   const isLead = agent.role === 'lead';
-  const isLeadCoffee = isLead && isIdle;
-  const anim = isLeadCoffee ? 'anim-thinking' : (STATUS_ANIM[agent.status] || 'anim-idle');
+  const isOwner = agent.role === 'owner';
+  const isBossIdle = (isLead || isOwner) && isIdle;
+  const anim = isBossIdle ? 'anim-thinking' : (STATUS_ANIM[agent.status] || 'anim-idle');
   const c = r.color;
 
   // ── Character colors
@@ -987,7 +1045,21 @@ function sceneSVG(agent) {
   const eyeColor = isIdle ? hair + '55' : hair + 'bb';
 
   // Thought bubble or ZZZ
-  const zzzHTML = isLeadCoffee ? `
+  const zzzHTML = (isOwner && isIdle) ? `
+    <!-- dollar signs floating up -->
+    <text x="56" y="14" font-family="monospace" font-size="7" fill="#ffd700" opacity="0">$
+      <animate attributeName="opacity" values="0;0.8;0" dur="3s" begin="0s" repeatCount="indefinite"/>
+      <animate attributeName="y"       values="14;4;-6"  dur="3s" begin="0s" repeatCount="indefinite"/>
+    </text>
+    <text x="63" y="8" font-family="monospace" font-size="9" fill="#ffcc00" opacity="0">$
+      <animate attributeName="opacity" values="0;0.8;0" dur="3s" begin="1s" repeatCount="indefinite"/>
+      <animate attributeName="y"       values="8;-2;-12" dur="3s" begin="1s" repeatCount="indefinite"/>
+    </text>
+    <text x="70" y="2" font-family="monospace" font-size="11" fill="#ffdd44" opacity="0">$
+      <animate attributeName="opacity" values="0;0.8;0" dur="3s" begin="2s" repeatCount="indefinite"/>
+      <animate attributeName="y"       values="2;-10;-22" dur="3s" begin="2s" repeatCount="indefinite"/>
+    </text>`
+  : (isLead && isIdle) ? `
     <!-- thought bubbles rising from head -->
     <circle cx="60" cy="18" r="2" fill="#aabbcc" opacity="0">
       <animate attributeName="opacity" values="0;0.5;0.5;0" dur="4s" begin="0s" repeatCount="indefinite"/>
@@ -1027,21 +1099,29 @@ function sceneSVG(agent) {
     ? `<rect x="${hx+7}" y="${hairT+6}" width="5" height="14" rx="2" fill="${hair}"/>` : '';
 
   // Sleep head tilt via transform on the head group (lead stays upright)
-  const headGroupAttr = (isIdle && !isLeadCoffee)
+  const headGroupAttr = (isIdle && !isBossIdle)
     ? `transform="rotate(12, ${hx}, ${hy+16})"` : '';
 
   // Eye shape: open = small rect, closed = thin line (lead keeps eyes open + relaxed smile)
-  const eyes = (isIdle && !isLeadCoffee)
+  const eyes = (isIdle && !isBossIdle)
     ? `<rect x="${headL+3}" y="${eyeY}" width="4" height="1" rx="1" fill="${eyeColor}"/>
        <rect x="${headL+10}" y="${eyeY}" width="4" height="1" rx="1" fill="${eyeColor}"/>`
-    : isLeadCoffee
+    : isBossIdle
     ? `<rect x="${headL+3}" y="${eyeY}" width="4" height="2.5" rx="1" fill="${hair}99"/>
        <rect x="${headL+10}" y="${eyeY}" width="4" height="2.5" rx="1" fill="${hair}99"/>`
     : `<rect x="${headL+3}" y="${eyeY}" width="4" height="3" rx="1" fill="${eyeColor}"/>
        <rect x="${headL+10}" y="${eyeY}" width="4" height="3" rx="1" fill="${eyeColor}"/>`;
 
   // MacBook screen content
-  const screenContent = isLeadCoffee
+  const screenContent = (isOwner && isIdle)
+    ? `<!-- stock chart on screen -->
+       <polyline points="18,74 24,70 30,72 36,64 42,66 48,58 54,60 60,56" stroke="#4caf50" stroke-width="1.5" fill="none" opacity="0.6"/>
+       <polyline points="18,74 24,72 30,68 36,70 42,62 48,64 54,58 60,56" stroke="#ffd700" stroke-width="1" fill="none" opacity="0.3"/>
+       <text x="20" y="60" font-family="monospace" font-size="4" fill="#4caf50aa">▲ +12.4%</text>
+       <circle cx="58" cy="56" r="2" fill="#4caf5055">
+         <animate attributeName="opacity" values="0.2;0.6;0.2" dur="2s" repeatCount="indefinite"/>
+       </circle>`
+    : (isLead && isIdle)
     ? `<rect x="18" y="60" width="14" height="2" rx="1" fill="${c}33"/>
        <rect x="18" y="64" width="20" height="2" rx="1" fill="${c}22"/>
        <rect x="18" y="68" width="10" height="2" rx="1" fill="${c}18"/>
@@ -1086,8 +1166,8 @@ function sceneSVG(agent) {
   <!-- Bezel -->
   <polygon points="12,52 68,52 64,80 16,80" fill="#111116"/>
   <!-- Screen -->
-  <polygon points="14,54 66,54 62,78 18,78" fill="${isIdle && !isLeadCoffee ? '#070910' : '#0c1420'}"
-           style="${isIdle && !isLeadCoffee ? '' : 'filter:drop-shadow(0 0 4px ' + c + (isLeadCoffee ? '33' : '66') + ')'}"/>
+  <polygon points="14,54 66,54 62,78 18,78" fill="${isIdle && !isBossIdle ? '#070910' : '#0c1420'}"
+           style="${isIdle && !isBossIdle ? '' : 'filter:drop-shadow(0 0 4px ' + c + (isBossIdle ? '33' : '66') + ')'}"/>
   ${screenContent}
   <!-- Hinge -->
   <rect x="10" y="81" width="60" height="3" rx="0" fill="#1a1a1c"/>
@@ -1119,7 +1199,27 @@ function sceneSVG(agent) {
   <rect x="0" y="95" width="80" height="2" rx="1" fill="#7a5540"/>
 
   <!-- ── ARMS over keyboard (z=5) ── -->
-  ${isLeadCoffee ? `
+  ${(isOwner && isIdle) ? `
+  <g class="agent-arms">
+    <!-- left arm raised holding money paper -->
+    <rect x="14" y="${torsoT}" width="7" height="16" rx="3"
+          fill="${body}" transform="rotate(-40,17,${torsoT})"/>
+    <!-- left hand gripping paper -->
+    <rect x="13" y="44" width="7" height="5" rx="2" fill="${skin}"/>
+    <!-- money/document paper -->
+    <rect x="8" y="36" width="16" height="12" rx="1" fill="#d4e8c0" transform="rotate(-8,16,42)"/>
+    <rect x="9" y="37" width="14" height="10" rx="1" fill="#b8d4a0" transform="rotate(-8,16,42)"/>
+    <!-- dollar sign on paper -->
+    <text x="13" y="45" font-family="monospace" font-size="8" fill="#2d6b2d" font-weight="bold" transform="rotate(-8,16,42)">$</text>
+    <!-- paper lines -->
+    <rect x="10" y="38" width="8" height="1" rx="0.5" fill="#8bb070" transform="rotate(-8,16,42)"/>
+    <rect x="10" y="40" width="10" height="1" rx="0.5" fill="#8bb07088" transform="rotate(-8,16,42)"/>
+    <!-- right arm on desk relaxed -->
+    <rect x="55" y="${torsoT+2}" width="7" height="28" rx="3"
+          fill="${body}" transform="rotate(15,59,${torsoT+2})"/>
+    <rect x="57" y="86" width="8" height="5" rx="2" fill="${skin}"/>
+  </g>`
+  : (isLead && isIdle) ? `
   <g class="agent-arms">
     <!-- left arm raised holding coffee near face -->
     <rect x="14" y="${torsoT}" width="7" height="16" rx="3"
@@ -1160,8 +1260,19 @@ function sceneSVG(agent) {
     <rect x="${headL}" y="${headT}" width="18" height="16" rx="2" fill="${skin}"/>
     <!-- Eyes -->
     ${eyes}
+    ${isOwner ? `
+    <!-- Glasses -->
+    <rect x="${headL+2}" y="${eyeY-1}" width="6" height="5" rx="1" fill="none" stroke="#aabbcc" stroke-width="0.8"/>
+    <rect x="${headL+9}" y="${eyeY-1}" width="6" height="5" rx="1" fill="none" stroke="#aabbcc" stroke-width="0.8"/>
+    <line x1="${headL+8}" y1="${eyeY+1}" x2="${headL+9}" y2="${eyeY+1}" stroke="#aabbcc" stroke-width="0.6"/>
+    <!-- ear hooks -->
+    <line x1="${headL+2}" y1="${eyeY+1}" x2="${headL}" y2="${eyeY+2}" stroke="#aabbcc" stroke-width="0.5"/>
+    <line x1="${headL+15}" y1="${eyeY+1}" x2="${headL+17}" y2="${eyeY+2}" stroke="#aabbcc" stroke-width="0.5"/>
+    ` : ''}
     <!-- Mouth -->
-    ${isLeadCoffee
+    ${isOwner && isIdle
+      ? `<path d="M${headL+5},${hy+11} Q${headL+9},${hy+13} ${headL+13},${hy+11}" stroke="${hair}55" stroke-width="1.5" fill="none"/>`
+      : isBossIdle
       ? `<path d="M${headL+5},${hy+11} Q${headL+9},${hy+14} ${headL+13},${hy+11}" stroke="${hair}55" stroke-width="1.5" fill="none"/>`
       : `<rect x="${headL+4}" y="${hy+12}" width="10" height="2" rx="1" fill="${hair}44"/>`}
   </g>
@@ -1256,9 +1367,9 @@ function renderAll() {
   const compact = isCompact();
   office.classList.toggle('compact', compact);
 
-  // Separate lead from others
-  const lead = agents.find(a => a.role === 'lead');
-  const others = agents.filter(a => a.role !== 'lead');
+  // Separate lead/owner from others (owner takes center when no lead)
+  const lead = agents.find(a => a.role === 'lead') || agents.find(a => a.role === 'owner');
+  const others = agents.filter(a => a !== lead);
 
   // Dummy pos for compact mode (position:static ignores left/top)
   const noPos = {left:'0',top:'0'};
@@ -1450,6 +1561,12 @@ function receiveReply(agentId, reply) {
   }
   renderAgentPanel();
   spawnParticle(agentId);
+
+  // Auto-open doc viewer for complex replies from owner/lead
+  const agent = agents.find(a => a.id === agentId);
+  if (agent && (agent.role === 'owner' || agent.role === 'lead') && isComplexReply(reply)) {
+    openDocViewer(agentId, reply);
+  }
 }
 
 // Demo replies when bridge not connected
@@ -1474,6 +1591,90 @@ function demoReply(agentId, userMsg) {
   const idx = agents.findIndex(a=>a.id===agentId);
   if (idx>=0) { agents[idx].status = newStatus; renderAll(); }
 }
+
+// ════════════════════════════════════════════════════════
+// DOCUMENT VIEWER
+// ════════════════════════════════════════════════════════
+
+/** Check if a reply is complex enough to warrant the doc viewer */
+function isComplexReply(text) {
+  if (!text || text.length < 150) return false;
+  // Has markdown table
+  if (/\|.+\|.+\|/.test(text) && /[-:]{3,}/.test(text)) return true;
+  // Has code block
+  if (/```[\s\S]+```/.test(text)) return true;
+  // Has multiple headers
+  if ((text.match(/^#{1,3}\s/gm) || []).length >= 2) return true;
+  // Has bullet list with 5+ items
+  if ((text.match(/^[\s]*[-*]\s/gm) || []).length >= 5) return true;
+  // Just very long
+  if (text.length > 400) return true;
+  return false;
+}
+
+/** Minimal markdown → HTML renderer */
+function mdToHtml(md) {
+  let html = md;
+  // Escape HTML entities
+  html = html.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // Code blocks (``` ... ```)
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
+    `<pre><code>${code.trim()}</code></pre>`);
+  // Tables
+  html = html.replace(/^(\|.+\|)\n(\|[-:\s|]+\|)\n((?:\|.+\|\n?)+)/gm, (_, hdr, sep, rows) => {
+    const ths = hdr.split('|').filter(c=>c.trim()).map(c=>`<th>${c.trim()}</th>`).join('');
+    const trs = rows.trim().split('\n').map(row => {
+      const tds = row.split('|').filter(c=>c.trim()).map(c=>`<td>${c.trim()}</td>`).join('');
+      return `<tr>${tds}</tr>`;
+    }).join('');
+    return `<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
+  });
+  // Headers
+  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+  // Bold & italic
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  // Blockquote
+  html = html.replace(/^&gt;\s?(.+)$/gm, '<blockquote>$1</blockquote>');
+  // Horizontal rule
+  html = html.replace(/^---+$/gm, '<hr>');
+  // Unordered list items
+  html = html.replace(/^[\s]*[-*]\s(.+)$/gm, '<li>$1</li>');
+  html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
+  // Paragraphs (double newlines)
+  html = html.replace(/\n\n+/g, '</p><p>');
+  // Single newlines → <br> (but not inside pre/table)
+  html = html.replace(/([^>])\n([^<])/g, '$1<br>$2');
+  html = `<p>${html}</p>`;
+  // Clean up empty paragraphs
+  html = html.replace(/<p>\s*<\/p>/g, '');
+  return html;
+}
+
+function openDocViewer(agentId, text) {
+  const agent = agents.find(a => a.id === agentId);
+  const r = agent ? (ROLES[agent.role] || ROLES.dev) : {emoji:'📄',color:'#4fc3f7',label:'SYS'};
+  document.getElementById('doc-icon').textContent = r.emoji;
+  document.getElementById('doc-title').textContent = `Report from ${agent?.name || agentId}`;
+  document.getElementById('doc-title').style.color = r.color;
+  document.getElementById('doc-body').innerHTML = mdToHtml(text);
+  document.getElementById('doc-overlay').classList.add('open');
+  document.getElementById('doc-panel').classList.add('open');
+}
+
+function closeDocViewer() {
+  document.getElementById('doc-overlay').classList.remove('open');
+  document.getElementById('doc-panel').classList.remove('open');
+}
+
+// Close doc viewer on Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeDocViewer();
+});
 
 // ════════════════════════════════════════════════════════
 // LOGS
@@ -1644,12 +1845,8 @@ async function fetchTeams() {
       sel.value = latest.name;
       selectTeam(latest.name);
     } else {
-      // No active teams — clear any stale agent state
-      agents = [];
-      chats = {};
-      unread = {};
-      selectedAgent = null;
-      renderAll();
+      // No active teams — scan for owner sessions
+      scanOwnerSessions();
     }
   } catch {}
 }
@@ -1677,6 +1874,10 @@ function handleTeamsUpdated(teams) {
       selectTeam(latest.name);
       addLog('system', `New team detected: ${latest.name} — auto-connected`);
     }
+  } else {
+    // All teams dismissed — fall back to owner sessions
+    addLog('system', 'All teams dismissed — scanning for owner sessions');
+    scanOwnerSessions();
   }
   addLog('system', `Teams updated: ${teams.length} active team(s)`);
 }
@@ -1706,6 +1907,27 @@ async function selectTeam(teamName) {
 
 // ════════════════════════════════════════════════════════
 // BOOT — start empty, agents come from bridge via WebSocket
+async function scanOwnerSessions() {
+  try {
+    const httpUrl = bridgeUrl.replace('ws://','http://').replace('wss://','https://');
+    const res = await fetch(`${httpUrl}/scan/owner`, { method: 'POST' });
+    if (!res.ok) return;
+    const data = await res.json();
+    // Clear local state — owner state will arrive via WebSocket
+    agents = [];
+    chats = {};
+    unread = {};
+    selectedAgent = null;
+    closeChat();
+    renderAll();
+    if (data.sessions > 0) {
+      addLog('system', `Found ${data.sessions} owner session(s)`);
+    } else {
+      addLog('system', 'No active Claude sessions found');
+    }
+  } catch {}
+}
+
 // ════════════════════════════════════════════════════════
 agents = [];
 renderAll();
