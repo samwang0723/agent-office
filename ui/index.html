@@ -1417,7 +1417,8 @@ function sizeEarth() {
   const padding = 80;
   const dx = Math.max(Math.abs(maxX - cx), Math.abs(minX - cx));
   const dy = Math.max(Math.abs(maxY - cy), Math.abs(minY - cy));
-  const diameter = Math.max(dx, dy) * 2 + padding * 2;
+  const minDiameter = 340;
+  const diameter = Math.max(Math.max(dx, dy) * 2 + padding * 2, minDiameter);
 
   earth.style.width = diameter + 'px';
   earth.style.height = diameter + 'px';
