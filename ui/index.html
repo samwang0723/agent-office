@@ -548,6 +548,39 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:1000;
           <animate attributeName="fill" values="#ffcc4400;#ffcc4422;#ffcc4400" dur="3.5s" begin="0.5s" repeatCount="indefinite"/>
         </circle>
       </g>
+      <!-- Clouds (pixel patches, slow drift) -->
+      <g id="earth-clouds" opacity="0.18" clip-path="url(#globe-clip)">
+        <!-- Cloud 1: North Pacific -->
+        <g fill="#dde4ee">
+          <rect x="60" y="132" width="12" height="12"/><rect x="72" y="132" width="12" height="12"/>
+          <rect x="84" y="132" width="12" height="12"/><rect x="48" y="144" width="12" height="12"/>
+          <rect x="60" y="144" width="12" height="12"/><rect x="72" y="144" width="12" height="12"/>
+          <rect x="84" y="144" width="12" height="12"/><rect x="96" y="144" width="12" height="12"/>
+          <rect x="60" y="156" width="12" height="12"/><rect x="72" y="156" width="12" height="12"/>
+          <animateTransform attributeName="transform" type="translate" values="0,0;18,0;0,0" dur="80s" repeatCount="indefinite"/>
+        </g>
+        <!-- Cloud 2: South Atlantic -->
+        <g fill="#ccd4de">
+          <rect x="156" y="228" width="12" height="12"/><rect x="168" y="228" width="12" height="12"/>
+          <rect x="144" y="240" width="12" height="12"/><rect x="156" y="240" width="12" height="12"/>
+          <rect x="168" y="240" width="12" height="12"/><rect x="180" y="240" width="12" height="12"/>
+          <rect x="156" y="252" width="12" height="12"/><rect x="168" y="252" width="12" height="12"/>
+          <animateTransform attributeName="transform" type="translate" values="0,0;-14,0;0,0" dur="65s" repeatCount="indefinite"/>
+        </g>
+        <!-- Cloud 3: Indian Ocean -->
+        <g fill="#dde4ee">
+          <rect x="240" y="192" width="12" height="12"/><rect x="252" y="192" width="12" height="12"/>
+          <rect x="264" y="192" width="12" height="12"/><rect x="240" y="204" width="12" height="12"/>
+          <rect x="252" y="204" width="12" height="12"/>
+          <animateTransform attributeName="transform" type="translate" values="0,0;12,0;0,0" dur="55s" repeatCount="indefinite"/>
+        </g>
+        <!-- Cloud 4: North Atlantic wisp -->
+        <g fill="#ccd4de">
+          <rect x="144" y="84" width="12" height="12"/><rect x="156" y="84" width="12" height="12"/>
+          <rect x="156" y="96" width="12" height="12"/>
+          <animateTransform attributeName="transform" type="translate" values="0,0;10,0;0,0" dur="70s" repeatCount="indefinite"/>
+        </g>
+      </g>
       <!-- Atmosphere rim -->
       <circle id="earth-atm-stroke" cx="200" cy="200" r="152" fill="none" stroke="#4fc3f7" stroke-width="1" opacity="0.06"/>
       <circle cx="200" cy="200" r="156" fill="url(#atmosphere)"/>
