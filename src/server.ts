@@ -71,8 +71,91 @@ interface BridgeLog {
   data: unknown;
 }
 
-// ─── Active team tracking ────────────────────────────────────────────────────
-let activeTeamName: string | null = null;
+// ─── Centralized Mode State Machine ──────────────────────────────────────────
+type ServerMode =
+  | { type: "idle" }
+  | { type: "team"; name: string }
+  | { type: "owner" };
+
+let currentMode: ServerMode = { type: "idle" };
+
+// Convenience getter for backwards compat
+function getActiveTeamName(): string | null {
+  return currentMode.type === "team" ? currentMode.name : null;
+}
+
+/** Single function that handles ALL mode transitions */
+function transitionTo(newMode: ServerMode) {
+  const prev = currentMode;
+  const isSameMode =
+    prev.type === newMode.type &&
+    (prev.type !== "team" ||
+      (newMode.type === "team" && prev.name === newMode.name));
+
+  if (isSameMode) return;
+
+  console.log(
+    `[MODE] ${prev.type}${prev.type === "team" ? `(${prev.name})` : ""} → ${newMode.type}${newMode.type === "team" ? `(${newMode.name})` : ""}`,
+  );
+
+  // Stop whatever is currently running
+  stopScanner();
+  stopOwnerScanner();
+  cachedLeadPane = null;
+  cachedLeadTeam = null;
+
+  currentMode = newMode;
+
+  if (newMode.type === "team") {
+    writeState([]);
+    broadcast("state_update", []);
+    startScanner(
+      newMode.name,
+      (agentId, update) => {
+        updateAgentState(agentId, update as Partial<AgentState>);
+      },
+      (agentId, reply) => {
+        broadcast("agent_reply", { agentId, reply });
+        appendLog({
+          timestamp: new Date().toISOString(),
+          type: "agent_reply",
+          agentId,
+          data: { reply: reply.slice(0, 200) },
+        });
+      },
+    );
+  } else if (newMode.type === "owner") {
+    writeState([]);
+    broadcast("state_update", []);
+    const sessions = discoverOwnerSessions();
+    if (sessions.length > 0) {
+      startOwnerScanner(
+        sessions,
+        (agentId, update) => {
+          updateAgentState(agentId, update as Partial<AgentState>);
+        },
+        (agentId, reply) => {
+          broadcast("agent_reply", { agentId, reply });
+          appendLog({
+            timestamp: new Date().toISOString(),
+            type: "agent_reply",
+            agentId,
+            data: { reply: reply.slice(0, 200) },
+          });
+        },
+      );
+    }
+  } else {
+    // idle
+    writeState([]);
+    broadcast("state_update", []);
+  }
+
+  broadcast("mode", {
+    mode: newMode.type,
+    team: newMode.type === "team" ? newMode.name : null,
+  });
+}
 
 // ─── WebSocket clients ───────────────────────────────────────────────────────
 const clients = new Set<import("bun").ServerWebSocket<unknown>>();
@@ -161,6 +244,16 @@ function ensureAgent(
 
 function updateAgentState(agentId: string, update: Partial<AgentState>) {
   const state = readState();
+
+  // Handle agent removal (teammate dismissed)
+  if (update.task === "__removed__") {
+    const filtered = state.filter((a) => a.id !== agentId);
+    console.log(`[STATE] Removed dismissed agent: ${agentId}`);
+    writeState(filtered);
+    broadcast("state_update", filtered);
+    return;
+  }
+
   const idx = ensureAgent(state, agentId, update);
   state[idx] = {
     ...state[idx],
@@ -398,6 +491,15 @@ async function handleRequest(req: Request): Promise<Response> {
   // Preflight
   if (method === "OPTIONS") return new Response(null, { headers: CORS });
 
+  // ── GET /mode ── returns current server mode
+  if (method === "GET" && path === "/mode") {
+    return json({
+      mode: currentMode.type,
+      team: currentMode.type === "team" ? currentMode.name : null,
+      state: readState(),
+    });
+  }
+
   // ── GET /state ── returns all agents
   if (method === "GET" && path === "/state") {
     return json(readState());
@@ -441,6 +543,7 @@ async function handleRequest(req: Request): Promise<Response> {
     // Look up tmux pane ID from active team config or owner sessions
     let tmuxSent = false;
     let paneId: string | null = null;
+    const activeTeamName = getActiveTeamName();
 
     if (activeTeamName) {
       const config = getTeamConfig(activeTeamName);
@@ -570,35 +673,16 @@ async function handleRequest(req: Request): Promise<Response> {
 
   // ── POST /scan/owner ── start scanning owner sessions (no team)
   if (method === "POST" && path === "/scan/owner") {
-    stopScanner();
-    stopOwnerScanner();
-    activeTeamName = null;
-    cachedLeadPane = null;
-    cachedLeadTeam = null;
-    writeState([]);
-    broadcast("state_update", []);
-
-    const sessions = discoverOwnerSessions();
-    if (sessions.length === 0) {
-      return json({ ok: true, sessions: 0 });
+    // If already in owner mode, return current state
+    if (currentMode.type === "owner") {
+      return json({
+        ok: true,
+        sessions: readState().length,
+        state: readState(),
+      });
     }
-
-    startOwnerScanner(
-      sessions,
-      (agentId, update) => {
-        updateAgentState(agentId, update as Partial<AgentState>);
-      },
-      (agentId, reply) => {
-        broadcast("agent_reply", { agentId, reply });
-        appendLog({
-          timestamp: new Date().toISOString(),
-          type: "agent_reply",
-          agentId,
-          data: { reply: reply.slice(0, 200) },
-        });
-      },
-    );
-    return json({ ok: true, sessions: sessions.length });
+    transitionTo({ type: "owner" });
+    return json({ ok: true, sessions: readState().length });
   }
 
   // ── GET /teams ── list available teams from ~/.claude/teams/
@@ -631,42 +715,20 @@ async function handleRequest(req: Request): Promise<Response> {
     if (!teamName) {
       return json({ error: "team required" }, 400);
     }
-    // Clear existing state when switching teams
-    stopScanner();
-    stopOwnerScanner();
-    activeTeamName = teamName;
-    cachedLeadPane = null;
-    cachedLeadTeam = null;
-    writeState([]);
-    broadcast("state_update", []);
 
-    startScanner(
-      teamName,
-      (agentId, update) => {
-        updateAgentState(agentId, update as Partial<AgentState>);
-      },
-      (agentId, reply) => {
-        broadcast("agent_reply", { agentId, reply });
-        appendLog({
-          timestamp: new Date().toISOString(),
-          type: "agent_reply",
-          agentId,
-          data: { reply: reply.slice(0, 200) },
-        });
-      },
-    );
+    // If already scanning this team, return current state without restarting
+    if (currentMode.type === "team" && currentMode.name === teamName) {
+      const state = readState();
+      return json({ ok: true, team: teamName, state });
+    }
+
+    transitionTo({ type: "team", name: teamName });
     return json({ ok: true, team: teamName });
   }
 
   // ── DELETE /scan ── stop JSONL scanning
   if (method === "DELETE" && path === "/scan") {
-    stopScanner();
-    stopOwnerScanner();
-    activeTeamName = null;
-    cachedLeadPane = null;
-    cachedLeadTeam = null;
-    writeState([]);
-    broadcast("state_update", []);
+    transitionTo({ type: "idle" });
     return json({ ok: true, scanning: false });
   }
 
@@ -725,37 +787,28 @@ function checkForTeamChanges() {
       `[TEAMS] Team list changed — ${teams.length} active team(s): ${teams.map((t) => t.name).join(", ") || "none"}`,
     );
 
-    // Auto-stop scanning if the active team was dismissed
-    if (activeTeamName && !teams.find((t) => t.name === activeTeamName)) {
-      console.log(
-        `[TEAMS] Active team "${activeTeamName}" is no longer alive — stopping scanner`,
-      );
-      stopScanner();
-      activeTeamName = null;
-      cachedLeadPane = null;
-      cachedLeadTeam = null;
-      writeState([]);
-      broadcast("state_update", []);
+    const activeTeamName = getActiveTeamName();
 
-      // Fall back to owner session scanning when no teams remain
-      if (teams.length === 0) {
-        const ownerSessions = discoverOwnerSessions();
-        if (ownerSessions.length > 0) {
-          console.log(
-            `[TEAMS] No teams — falling back to ${ownerSessions.length} owner session(s)`,
-          );
-          startOwnerScanner(
-            ownerSessions,
-            (agentId, update) => {
-              updateAgentState(agentId, update as Partial<AgentState>);
-            },
-            (agentId, reply) => {
-              broadcast("agent_reply", { agentId, reply });
-            },
-          );
-          broadcast("owner_sessions", ownerSessions.length);
-        }
+    // Auto-transition if the active team was dismissed
+    if (activeTeamName && !teams.find((t) => t.name === activeTeamName)) {
+      console.log(`[TEAMS] Active team "${activeTeamName}" is no longer alive`);
+      if (teams.length > 0) {
+        // Switch to the most recent remaining team
+        transitionTo({ type: "team", name: teams[teams.length - 1].name });
+      } else {
+        // No teams remain — fall back to owner
+        transitionTo({ type: "owner" });
       }
+    }
+
+    // If idle and teams appeared, auto-select the newest
+    if (currentMode.type === "idle" && teams.length > 0) {
+      transitionTo({ type: "team", name: teams[teams.length - 1].name });
+    }
+
+    // If in owner mode and teams appeared, switch to team
+    if (currentMode.type === "owner" && teams.length > 0) {
+      transitionTo({ type: "team", name: teams[teams.length - 1].name });
     }
   }
 }
@@ -794,11 +847,22 @@ const server = Bun.serve({
   websocket: {
     open(ws) {
       clients.add(ws);
-      // Send current state on connect — empty if no active team
+      // Send current mode so client knows what state we're in
+      ws.send(
+        JSON.stringify({
+          event: "mode",
+          data: {
+            mode: currentMode.type,
+            team: currentMode.type === "team" ? currentMode.name : null,
+          },
+          timestamp: new Date().toISOString(),
+        }),
+      );
+      // Send current state regardless of mode
       ws.send(
         JSON.stringify({
           event: "state_update",
-          data: activeTeamName ? readState() : [],
+          data: readState(),
           timestamp: new Date().toISOString(),
         }),
       );
@@ -835,6 +899,20 @@ console.log(`
 ║  GET  /inbox/:id       → agent polls  ║
 ║  POST /reply           → agent reply  ║
 ║  GET  /logs            → bridge logs  ║
+║  GET  /mode            → current mode ║
 ║  GET  /health          → status       ║
 ╚═══════════════════════════════════════╝
 `);
+
+// ─── Auto-detect mode on startup ─────────────────────────────────────────────
+const startupTeams = listTeams();
+if (startupTeams.length > 0) {
+  const latest = startupTeams[startupTeams.length - 1];
+  console.log(
+    `[STARTUP] Found ${startupTeams.length} team(s) — auto-selecting: ${latest.name}`,
+  );
+  transitionTo({ type: "team", name: latest.name });
+} else {
+  console.log("[STARTUP] No teams — checking for owner sessions");
+  transitionTo({ type: "owner" });
+}
