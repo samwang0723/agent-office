@@ -71,6 +71,7 @@ interface TrackedAgent {
   lastContextUsed: number; // input tokens of last turn = current context size
   actualModel: string; // real model from JSONL (may differ from config)
   lastReplyText: string; // assistant text output to forward as chat reply
+  hasTmux: boolean;
 }
 
 type StateCallback = (agentId: string, update: Record<string, unknown>) => void;
@@ -295,6 +296,7 @@ function correlateAndTail(
             lastContextUsed: 0,
             actualModel: "",
             lastReplyText: "",
+            hasTmux: true,
           };
           tracked.set(config.leadSessionId, agent);
           console.log(
@@ -369,6 +371,7 @@ function correlateAndTail(
         lastContextUsed: 0,
         actualModel: "",
         lastReplyText: "",
+        hasTmux: true,
       };
 
       tracked.set(sessionId, agent);
@@ -469,6 +472,7 @@ function readNewLines(
         contextUsed:
           agent.lastContextUsed > 0 ? agent.lastContextUsed : undefined,
         contextMax: getContextMax(agent.actualModel || agent.model),
+        hasTmux: agent.hasTmux,
       });
     }
   } catch {}
@@ -766,6 +770,7 @@ export function startOwnerScanner(
       status: "idle",
       task: session.cwd,
       model: "unknown",
+      hasTmux: !!session.tmuxPane,
     });
 
     const agent: TrackedAgent = {
@@ -789,6 +794,7 @@ export function startOwnerScanner(
       lastContextUsed: 0,
       actualModel: "",
       lastReplyText: "",
+      hasTmux: !!session.tmuxPane,
     };
 
     ownerTracked.set(sessionId, agent);

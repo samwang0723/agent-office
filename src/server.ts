@@ -53,6 +53,7 @@ interface AgentState {
   model?: string;
   tokens?: number;
   lastUpdated?: string;
+  hasTmux?: boolean;
 }
 
 interface InboxMessage {
