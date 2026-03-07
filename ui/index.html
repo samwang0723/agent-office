@@ -106,6 +106,17 @@ header{background:#090b14;border-bottom:2px solid var(--border);padding:7px 16px
 .speech::after{content:'';position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);
   border:5px solid transparent;border-top-color:var(--border);border-bottom:none}
 .station:hover .speech{opacity:1;transform:translateX(-50%) translateY(0)}
+/* speech: flip below for top-edge agents */
+.station.speech-below .speech{top:auto;top:100%;margin-top:4px;transform:translateX(-50%) translateY(-6px)}
+.station.speech-below:hover .speech{transform:translateX(-50%) translateY(0)}
+.station.speech-below .speech::after{bottom:auto;top:-5px;border:5px solid transparent;border-bottom-color:var(--border);border-top:none}
+/* speech: shift right for left-edge agents */
+.station.speech-align-right .speech{left:0;transform:translateY(6px)}
+.station.speech-align-right:hover .speech{transform:translateY(0)}
+.station.speech-align-right .speech::after{left:16px;transform:none}
+/* speech: both below + right */
+.station.speech-below.speech-align-right .speech{top:100%;margin-top:4px;left:0;transform:translateY(-6px)}
+.station.speech-below.speech-align-right:hover .speech{transform:translateY(0)}
 
 /* ── TYPING CURSOR ───────────────────────────────────────────── */
 .cur{display:inline-block;width:6px;height:12px;background:currentColor;
@@ -537,11 +548,98 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:1000;
           <animate attributeName="fill" values="#ffcc4400;#ffcc4422;#ffcc4400" dur="3.5s" begin="0.5s" repeatCount="indefinite"/>
         </circle>
       </g>
+      <!-- Clouds (pixel patches, slow drift) -->
+      <g id="earth-clouds" opacity="0.18" clip-path="url(#globe-clip)">
+        <!-- Cloud 1: North Pacific -->
+        <g fill="#dde4ee">
+          <rect x="60" y="132" width="12" height="12"/><rect x="72" y="132" width="12" height="12"/>
+          <rect x="84" y="132" width="12" height="12"/><rect x="48" y="144" width="12" height="12"/>
+          <rect x="60" y="144" width="12" height="12"/><rect x="72" y="144" width="12" height="12"/>
+          <rect x="84" y="144" width="12" height="12"/><rect x="96" y="144" width="12" height="12"/>
+          <rect x="60" y="156" width="12" height="12"/><rect x="72" y="156" width="12" height="12"/>
+          <animateTransform attributeName="transform" type="translate" values="0,0;18,0;0,0" dur="80s" repeatCount="indefinite"/>
+        </g>
+        <!-- Cloud 2: South Atlantic -->
+        <g fill="#ccd4de">
+          <rect x="156" y="228" width="12" height="12"/><rect x="168" y="228" width="12" height="12"/>
+          <rect x="144" y="240" width="12" height="12"/><rect x="156" y="240" width="12" height="12"/>
+          <rect x="168" y="240" width="12" height="12"/><rect x="180" y="240" width="12" height="12"/>
+          <rect x="156" y="252" width="12" height="12"/><rect x="168" y="252" width="12" height="12"/>
+          <animateTransform attributeName="transform" type="translate" values="0,0;-14,0;0,0" dur="65s" repeatCount="indefinite"/>
+        </g>
+        <!-- Cloud 3: Indian Ocean -->
+        <g fill="#dde4ee">
+          <rect x="240" y="192" width="12" height="12"/><rect x="252" y="192" width="12" height="12"/>
+          <rect x="264" y="192" width="12" height="12"/><rect x="240" y="204" width="12" height="12"/>
+          <rect x="252" y="204" width="12" height="12"/>
+          <animateTransform attributeName="transform" type="translate" values="0,0;12,0;0,0" dur="55s" repeatCount="indefinite"/>
+        </g>
+        <!-- Cloud 4: North Atlantic wisp -->
+        <g fill="#ccd4de">
+          <rect x="144" y="84" width="12" height="12"/><rect x="156" y="84" width="12" height="12"/>
+          <rect x="156" y="96" width="12" height="12"/>
+          <animateTransform attributeName="transform" type="translate" values="0,0;10,0;0,0" dur="70s" repeatCount="indefinite"/>
+        </g>
+      </g>
       <!-- Atmosphere rim -->
       <circle id="earth-atm-stroke" cx="200" cy="200" r="152" fill="none" stroke="#4fc3f7" stroke-width="1" opacity="0.06"/>
       <circle cx="200" cy="200" r="156" fill="url(#atmosphere)"/>
       <!-- Slow rotation -->
       <animateTransform attributeName="transform" type="rotate" from="0 200 200" to="15 200 200" dur="60s" repeatCount="indefinite" additive="sum" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1" values="0 200 200;15 200 200;0 200 200"/>
+
+      <!-- ── Orbiting objects ──────────────────────────────── -->
+
+      <!-- Moon (slow orbit, r~190) -->
+      <g opacity="0.7">
+        <animateTransform attributeName="transform" type="rotate" from="0 200 200" to="360 200 200" dur="120s" repeatCount="indefinite"/>
+        <circle cx="200" cy="18" r="10" fill="#bcc4cc"/>
+        <circle cx="197" cy="15" r="2" fill="#99a3ad" opacity="0.6"/>
+        <circle cx="204" cy="20" r="1.5" fill="#99a3ad" opacity="0.5"/>
+        <circle cx="200" cy="22" r="1" fill="#a8b0b8" opacity="0.4"/>
+        <!-- Moon glow -->
+        <circle cx="200" cy="18" r="14" fill="none" stroke="#dde4ee" stroke-width="0.5" opacity="0.3"/>
+      </g>
+
+      <!-- ISS / Space Station (medium orbit, r~170) -->
+      <g opacity="0.6">
+        <animateTransform attributeName="transform" type="rotate" from="60 200 200" to="420 200 200" dur="50s" repeatCount="indefinite"/>
+        <!-- Station body -->
+        <rect x="196" y="34" width="8" height="3" rx="1" fill="#c8d0d8"/>
+        <!-- Solar panels -->
+        <rect x="188" y="34" width="7" height="1.5" fill="#3a6a9f" opacity="0.8"/>
+        <rect x="205" y="34" width="7" height="1.5" fill="#3a6a9f" opacity="0.8"/>
+        <!-- Panel struts -->
+        <line x1="195" y1="35" x2="196" y2="35" stroke="#8898a8" stroke-width="0.5"/>
+        <line x1="204" y1="35" x2="205" y2="35" stroke="#8898a8" stroke-width="0.5"/>
+        <!-- Blinking light -->
+        <circle cx="200" cy="35" r="0.8" fill="#ff4444">
+          <animate attributeName="opacity" values="1;0.2;1" dur="1.5s" repeatCount="indefinite"/>
+        </circle>
+      </g>
+
+      <!-- Satellite (fast orbit, r~165, tilted) -->
+      <g opacity="0.5">
+        <animateTransform attributeName="transform" type="rotate" from="180 200 200" to="540 200 200" dur="35s" repeatCount="indefinite"/>
+        <!-- Satellite body -->
+        <rect x="198" y="38" width="4" height="3" fill="#a0a8b4"/>
+        <!-- Dish -->
+        <path d="M197 39 Q196 37 198 38" stroke="#8090a0" stroke-width="0.8" fill="none"/>
+        <!-- Solar panels -->
+        <rect x="193" y="38.5" width="4.5" height="1" fill="#2a5a8f" opacity="0.7"/>
+        <rect x="202.5" y="38.5" width="4.5" height="1" fill="#2a5a8f" opacity="0.7"/>
+        <!-- Signal pulse -->
+        <circle cx="197" cy="38" r="2" fill="none" stroke="#4fc3f7" stroke-width="0.3" opacity="0">
+          <animate attributeName="r" values="2;6" dur="3s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.4;0" dur="3s" repeatCount="indefinite"/>
+        </circle>
+      </g>
+
+      <!-- Small debris / micro-satellite (fast, tiny) -->
+      <g opacity="0.35">
+        <animateTransform attributeName="transform" type="rotate" from="270 200 200" to="-90 200 200" dur="25s" repeatCount="indefinite"/>
+        <rect x="199" y="42" width="2" height="2" fill="#8898a8" transform="rotate(45 200 43)"/>
+      </g>
+
     </svg>
     <svg class="conns" id="conns"></svg>
   </div>
@@ -1363,7 +1461,8 @@ function sizeEarth() {
   const padding = 80;
   const dx = Math.max(Math.abs(maxX - cx), Math.abs(minX - cx));
   const dy = Math.max(Math.abs(maxY - cy), Math.abs(minY - cy));
-  const diameter = Math.max(dx, dy) * 2 + padding * 2;
+  const minDiameter = 340;
+  const diameter = Math.max(Math.max(dx, dy) * 2 + padding * 2, minDiameter);
 
   earth.style.width = diameter + 'px';
   earth.style.height = diameter + 'px';
@@ -1394,10 +1493,27 @@ function renderAll() {
   if (!compact) {
     setTimeout(drawConns, 80);
     setTimeout(sizeEarth, 100);
+    setTimeout(adjustSpeechBubbles, 120);
   }
   renderAgentPanel();
   renderTicker();
   document.getElementById('acnt').textContent = t('header.agentCount', {count: agents.length});
+}
+
+// ════════════════════════════════════════════════════════
+// SPEECH BUBBLE EDGE DETECTION
+// ════════════════════════════════════════════════════════
+function adjustSpeechBubbles() {
+  const office = document.getElementById('office');
+  const or = office.getBoundingClientRect();
+  office.querySelectorAll('.station').forEach(el => {
+    el.classList.remove('speech-below', 'speech-align-right');
+    const r = el.getBoundingClientRect();
+    // Near top edge: flip speech below
+    if (r.top - or.top < 70) el.classList.add('speech-below');
+    // Near left edge: align speech to right
+    if (r.left - or.left < 150) el.classList.add('speech-align-right');
+  });
 }
 
 // ════════════════════════════════════════════════════════
