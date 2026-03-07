@@ -184,11 +184,29 @@ export function startScanner(
   // Initial JSONL correlation
   correlateAndTail(config, onStateUpdate, onReply);
 
-  // Periodic scan — re-read config to pick up new members
+  // Periodic scan — re-read config to pick up new/removed members
   scanTimer = setInterval(() => {
     const freshConfig = getTeamConfig(teamName);
     if (!freshConfig) return;
     registerMembers(freshConfig);
+
+    // Detect removed members (dismissed teammates)
+    const currentNames = new Set(freshConfig.members.map((m) => m.name));
+    for (const name of knownMembers) {
+      if (!currentNames.has(name)) {
+        knownMembers.delete(name);
+        tracked.delete(name);
+        console.log(`[SCANNER] Member left: ${name}`);
+        onStateUpdate(name, {
+          id: name,
+          role: "removed",
+          name,
+          status: "idle",
+          task: "__removed__",
+        });
+      }
+    }
+
     correlateAndTail(freshConfig, onStateUpdate, onReply);
   }, SCAN_INTERVAL_MS);
 

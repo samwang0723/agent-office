@@ -47,7 +47,7 @@ header{background:#090b14;border-bottom:2px solid var(--border);padding:7px 16px
 .main{display:flex;flex:1;overflow:hidden}
 
 /* ── OFFICE SCENE ───────────────────────────────────────────── */
-.office{flex:1;position:relative;overflow:hidden;background:var(--floor);
+.office{flex:1;position:relative;overflow:hidden;isolation:isolate;background:var(--floor);
         background-image:linear-gradient(var(--grid) 1px,transparent 1px),
                           linear-gradient(90deg,var(--grid) 1px,transparent 1px);
         background-size:32px 32px}
@@ -943,8 +943,8 @@ function connectWS() {
         addLog(data.agentId, `message sent: "${data.message.slice(0,40)}"`);
       } else if (event === 'teams_updated') {
         handleTeamsUpdated(data);
-      } else if (event === 'owner_sessions') {
-        addLog('system', `Owner mode: ${data} active session(s)`);
+      } else if (event === 'mode') {
+        handleModeChange(data);
       }
     } catch {}
   };
@@ -975,6 +975,16 @@ function setStatus(key, cls) {
 // ════════════════════════════════════════════════════════
 function applyState(data) {
   const arr = Array.isArray(data) ? data : [data];
+
+  // Server always sends full state array — remove agents that disappeared
+  // but only if we already had agents (avoid clearing on initial partial loads)
+  if (Array.isArray(data) && agents.length > 0 && data.length < agents.length) {
+    const incoming = new Set(arr.map(u => u.id));
+    const removed = agents.filter(a => !incoming.has(a.id));
+    removed.forEach(a => addLog(a.id, 'left the team'));
+    agents = agents.filter(a => incoming.has(a.id));
+  }
+
   arr.forEach(u => {
     const idx = agents.findIndex(a => a.id === u.id);
     if (idx >= 0) {
@@ -1827,33 +1837,59 @@ window.addEventListener('resize', drawConns);
 async function fetchTeams() {
   try {
     const httpUrl = bridgeUrl.replace('ws://','http://').replace('wss://','https://');
-    const res = await fetch(`${httpUrl}/teams`);
-    if (!res.ok) return;
-    const teams = await res.json();
-    const sel = document.getElementById('team-select');
-    sel.innerHTML = '<option value="">— select team —</option>';
-    teams.forEach(t => {
-      const opt = document.createElement('option');
-      opt.value = t.name;
-      opt.textContent = `${t.name} (${t.memberCount})`;
-      sel.appendChild(opt);
-    });
-    addLog('system', `Found ${teams.length} active team(s)`);
-    if (teams.length > 0) {
-      // Auto-select the most recent team (last in list)
-      const latest = teams[teams.length - 1];
-      sel.value = latest.name;
-      selectTeam(latest.name);
-    } else {
-      // No active teams — scan for owner sessions
-      scanOwnerSessions();
+
+    // Fetch both teams and current mode in parallel
+    const [teamsRes, modeRes] = await Promise.all([
+      fetch(`${httpUrl}/teams`),
+      fetch(`${httpUrl}/mode`)
+    ]);
+
+    if (teamsRes.ok) {
+      const teams = await teamsRes.json();
+      populateTeamDropdown(teams);
+      addLog('system', `Found ${teams.length} active team(s)`);
+    }
+
+    if (modeRes.ok) {
+      const modeData = await modeRes.json();
+      currentServerMode = modeData.mode;
+      currentServerTeam = modeData.team;
+
+      // Apply existing state immediately if server already has agents
+      if (modeData.state && modeData.state.length > 0) {
+        applyState(modeData.state);
+      }
+
+      // If server is idle, help it pick the right mode
+      if (modeData.mode === 'idle') {
+        const teamsRes2 = await fetch(`${httpUrl}/teams`);
+        const teams = teamsRes2.ok ? await teamsRes2.json() : [];
+        if (teams.length > 0) {
+          selectTeam(teams[teams.length - 1].name);
+        } else {
+          selectTeam('__owner__');
+        }
+      } else if (modeData.mode === 'team' && modeData.team) {
+        const sel = document.getElementById('team-select');
+        sel.value = modeData.team;
+        addLog('system', `Resuming team: ${modeData.team}`);
+      } else if (modeData.mode === 'owner') {
+        addLog('system', 'Resuming owner mode');
+      }
     }
   } catch {}
 }
 
 function handleTeamsUpdated(teams) {
+  populateTeamDropdown(teams);
+  // Server handles mode transitions — client just updates the dropdown
+  // The server will send a 'mode' event if the mode changed
+  addLog('system', `Teams updated: ${teams.length} active team(s)`);
+}
+
+function populateTeamDropdown(teams) {
   const sel = document.getElementById('team-select');
-  const currentTeam = sel.value;
+  const prev = sel.value;
   sel.innerHTML = '<option value="">— select team —</option>';
   teams.forEach(t => {
     const opt = document.createElement('option');
@@ -1861,71 +1897,70 @@ function handleTeamsUpdated(teams) {
     opt.textContent = `${t.name} (${t.memberCount})`;
     sel.appendChild(opt);
   });
-
-  if (teams.length > 0) {
-    // If we had a team selected and it's still in the list, keep it
-    const stillExists = teams.find(t => t.name === currentTeam);
-    if (stillExists) {
-      sel.value = currentTeam;
-    } else {
-      // Auto-select the newest team (last in list)
-      const latest = teams[teams.length - 1];
-      sel.value = latest.name;
-      selectTeam(latest.name);
-      addLog('system', `New team detected: ${latest.name} — auto-connected`);
-    }
-  } else {
-    // All teams dismissed — fall back to owner sessions
-    addLog('system', 'All teams dismissed — scanning for owner sessions');
-    scanOwnerSessions();
+  // Restore selection if team still exists
+  if (prev && teams.find(t => t.name === prev)) {
+    sel.value = prev;
+  } else if (currentServerMode === 'team' && currentServerTeam) {
+    sel.value = currentServerTeam;
   }
-  addLog('system', `Teams updated: ${teams.length} active team(s)`);
 }
 
 async function selectTeam(teamName) {
   if (!teamName) return;
   try {
     const httpUrl = bridgeUrl.replace('ws://','http://').replace('wss://','https://');
-    const res = await fetch(`${httpUrl}/scan`, {
+    const endpoint = teamName === '__owner__' ? '/scan/owner' : '/scan';
+    const body = teamName === '__owner__' ? {} : { team: teamName };
+    const res = await fetch(`${httpUrl}${endpoint}`, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ team: teamName })
+      body: JSON.stringify(body)
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    addLog('system', `Scanning team: ${teamName}`);
-    // Clear local state — new state will arrive via WebSocket
-    agents = [];
-    chats = {};
-    unread = {};
-    selectedAgent = null;
-    closeChat();
-    renderAll();
+    const result = await res.json();
+
+    // If server returned existing state, apply it immediately
+    if (result.state && result.state.length > 0) {
+      agents = [];
+      chats = {};
+      unread = {};
+      selectedAgent = null;
+      closeChat();
+      applyState(result.state);
+    }
+    // Otherwise, state will arrive via WebSocket from the scanner
   } catch (e) {
-    addLog('system', `Failed to select team: ${e.message}`);
+    addLog('system', `Failed to select: ${e.message}`);
   }
 }
 
 // ════════════════════════════════════════════════════════
-// BOOT — start empty, agents come from bridge via WebSocket
-async function scanOwnerSessions() {
-  try {
-    const httpUrl = bridgeUrl.replace('ws://','http://').replace('wss://','https://');
-    const res = await fetch(`${httpUrl}/scan/owner`, { method: 'POST' });
-    if (!res.ok) return;
-    const data = await res.json();
-    // Clear local state — owner state will arrive via WebSocket
+// MODE HANDLING — server is the source of truth
+let currentServerMode = 'idle';
+let currentServerTeam = null;
+
+function handleModeChange(data) {
+  currentServerMode = data.mode;
+  currentServerTeam = data.team;
+
+  if (data.mode === 'team') {
+    addLog('system', `Mode: team (${data.team})`);
+    const sel = document.getElementById('team-select');
+    if (sel.value !== data.team) sel.value = data.team;
+  } else if (data.mode === 'owner') {
+    addLog('system', 'Mode: owner');
+    // Clear team selection
+    document.getElementById('team-select').value = '';
+  } else {
+    addLog('system', 'Mode: idle');
+    document.getElementById('team-select').value = '';
     agents = [];
     chats = {};
     unread = {};
     selectedAgent = null;
     closeChat();
     renderAll();
-    if (data.sessions > 0) {
-      addLog('system', `Found ${data.sessions} owner session(s)`);
-    } else {
-      addLog('system', 'No active Claude sessions found');
-    }
-  } catch {}
+  }
 }
 
 // ════════════════════════════════════════════════════════
