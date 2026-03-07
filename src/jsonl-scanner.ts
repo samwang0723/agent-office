@@ -153,26 +153,43 @@ export function startScanner(
     `[SCANNER] Starting for team: ${teamName} (${config.members.length} members)`,
   );
 
-  // Register all members immediately from config (authoritative source)
-  for (const member of config.members) {
-    const role = mapAgentType(member.agentType);
-    onStateUpdate(member.name, {
-      id: member.name,
-      role,
-      name: member.name,
-      status: "idle",
-      task: "Registered from team config",
-      model: member.model || "unknown",
-      color: member.color,
-    });
+  // Track known member names to detect new joiners
+  const knownMembers = new Set<string>();
+  let initialRegistrationDone = false;
+
+  function registerMembers(cfg: TeamConfig) {
+    for (const member of cfg.members) {
+      if (knownMembers.has(member.name)) continue;
+      knownMembers.add(member.name);
+      const role = mapAgentType(member.agentType);
+      onStateUpdate(member.name, {
+        id: member.name,
+        role,
+        name: member.name,
+        status: "idle",
+        task: "Registered from team config",
+        model: member.model || "unknown",
+        color: member.color,
+      });
+      if (initialRegistrationDone) {
+        console.log(`[SCANNER] New member joined: ${member.name} (${role})`);
+      }
+    }
   }
+
+  // Register all current members
+  registerMembers(config);
+  initialRegistrationDone = true;
 
   // Initial JSONL correlation
   correlateAndTail(config, onStateUpdate, onReply);
 
-  // Periodic scan for new/changed JSONL sessions
+  // Periodic scan — re-read config to pick up new members
   scanTimer = setInterval(() => {
-    correlateAndTail(config, onStateUpdate, onReply);
+    const freshConfig = getTeamConfig(teamName);
+    if (!freshConfig) return;
+    registerMembers(freshConfig);
+    correlateAndTail(freshConfig, onStateUpdate, onReply);
   }, SCAN_INTERVAL_MS);
 
   // Periodic tail for live status
@@ -583,6 +600,7 @@ function getContextMax(model: string): number {
 function mapAgentType(agentType: string): string {
   const t = agentType.toLowerCase();
   if (t === "team-lead") return "lead";
+  if (t === "owner") return "owner";
   if (t === "pm") return "pm";
   if (t === "architect") return "architect";
   if (t === "dev") return "dev";
@@ -590,4 +608,222 @@ function mapAgentType(agentType: string): string {
   if (t === "security") return "security";
   if (t === "explore") return "dev";
   return "dev";
+}
+
+// ─── Owner Session Discovery ──────────────────────────────────────────────────
+
+export interface OwnerSession {
+  pid: number;
+  cwd: string;
+  projectName: string;
+  tty: string;
+  tmuxPane?: string;
+  jsonlPath?: string;
+}
+
+let ownerScanTimer: ReturnType<typeof setInterval> | null = null;
+let ownerTailTimer: ReturnType<typeof setInterval> | null = null;
+const ownerTracked = new Map<string, TrackedAgent>();
+const ownerPaneMap = new Map<string, string>(); // agentName → tmuxPaneId
+
+/** Look up the tmux pane for an owner agent by name */
+export function getOwnerPane(agentName: string): string | null {
+  return ownerPaneMap.get(agentName) || null;
+}
+
+/** Discover standalone Claude Code sessions (not part of a team) */
+export function discoverOwnerSessions(): OwnerSession[] {
+  const sessions: OwnerSession[] = [];
+  try {
+    // Find claude processes that are NOT teammates (no --agent-id flag)
+    const result = Bun.spawnSync({
+      cmd: [
+        "bash",
+        "-c",
+        "ps -eo pid,tty,command | grep -E '[c]laude' | grep -v -- '--agent-id' | grep -v grep | grep -v chroma | grep -v plugins | grep -v hooks | grep -v uv | grep -v bun",
+      ],
+    });
+    const lines = result.stdout.toString().trim().split("\n").filter(Boolean);
+
+    // Build tmux pane→tty mapping
+    const paneMap = new Map<string, string>();
+    try {
+      const tmuxResult = Bun.spawnSync({
+        cmd: ["tmux", "list-panes", "-a", "-F", "#{pane_tty} #{pane_id}"],
+      });
+      for (const line of tmuxResult.stdout.toString().trim().split("\n")) {
+        const [tty, paneId] = line.split(" ");
+        if (tty && paneId) paneMap.set(tty, paneId);
+      }
+    } catch {}
+
+    for (const line of lines) {
+      const match = line.trim().match(/^(\d+)\s+(\S+)\s+(.+)$/);
+      if (!match) continue;
+      const pid = Number.parseInt(match[1], 10);
+      const ttyShort = match[2];
+
+      // Get cwd via lsof
+      let cwd = "";
+      try {
+        const lsofResult = Bun.spawnSync({
+          cmd: ["lsof", "-p", String(pid), "-Fn"],
+        });
+        const lsofOut = lsofResult.stdout.toString();
+        const cwdMatch = lsofOut.match(/fcwd\nn(.*)/m);
+        if (cwdMatch) cwd = cwdMatch[1];
+      } catch {}
+      if (!cwd) continue;
+
+      const ttyFull = ttyShort.startsWith("/dev/")
+        ? ttyShort
+        : `/dev/${ttyShort}`;
+      const projectName = cwd.split("/").pop() || cwd;
+
+      sessions.push({
+        pid,
+        cwd,
+        projectName,
+        tty: ttyFull,
+        tmuxPane: paneMap.get(ttyFull),
+      });
+    }
+  } catch {}
+  return sessions;
+}
+
+/** Start scanning owner (standalone) sessions for live status */
+export function startOwnerScanner(
+  sessions: OwnerSession[],
+  onStateUpdate: StateCallback,
+  onReply?: ReplyCallback,
+) {
+  stopOwnerScanner();
+
+  for (const session of sessions) {
+    // Find JSONL file for this session
+    const projectDir = cwdToProjectDir(session.cwd);
+    if (!existsSync(projectDir)) continue;
+
+    let jsonlPath: string | null = null;
+    try {
+      const files = readdirSync(projectDir)
+        .filter((f) => f.endsWith(".jsonl"))
+        .map((f) => ({
+          name: f,
+          mtime: statSync(join(projectDir, f)).mtimeMs,
+        }))
+        .sort((a, b) => b.mtime - a.mtime);
+
+      // Pick the most recently modified JSONL that doesn't belong to a team
+      for (const file of files) {
+        const filePath = join(projectDir, file.name);
+        const identity = identifyAgent(filePath);
+        // Skip files that belong to a team
+        if (identity?.teamName) continue;
+        jsonlPath = filePath;
+        break;
+      }
+    } catch {}
+
+    if (!jsonlPath) continue;
+    session.jsonlPath = jsonlPath;
+
+    const sessionId = jsonlPath.split("/").pop()?.replace(".jsonl", "") || "";
+    if (ownerTracked.has(sessionId)) continue;
+
+    const agentName = `owner-${session.projectName}`;
+    const stat = statSync(jsonlPath);
+
+    // Store tmux pane mapping for message routing
+    if (session.tmuxPane) {
+      ownerPaneMap.set(agentName, session.tmuxPane);
+    }
+
+    // Register immediately
+    onStateUpdate(agentName, {
+      id: agentName,
+      role: "owner",
+      name: agentName,
+      status: "idle",
+      task: session.cwd,
+      model: "unknown",
+    });
+
+    const agent: TrackedAgent = {
+      agentName,
+      teamName: "__owner__",
+      agentType: "owner",
+      model: "unknown",
+      sessionId,
+      filePath: jsonlPath,
+      fileOffset: Math.max(0, stat.size - 64 * 1024),
+      lineBuffer: "",
+      lastTool: "",
+      lastActivity: Date.now(),
+      status: "idle",
+      task: session.cwd,
+      lastActiveTask: "",
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheCreateTokens: 0,
+      lastContextUsed: 0,
+      actualModel: "",
+      lastReplyText: "",
+    };
+
+    ownerTracked.set(sessionId, agent);
+    console.log(
+      `[SCANNER] Owner session: ${agentName} → ${sessionId.slice(0, 8)}`,
+    );
+    readNewLines(agent, onStateUpdate, onReply);
+  }
+
+  // Tail timer for live updates
+  ownerTailTimer = setInterval(() => {
+    for (const [, agent] of ownerTracked) {
+      readNewLines(agent, onStateUpdate, onReply);
+    }
+  }, TAIL_INTERVAL_MS);
+
+  // Periodic rescan for new/ended sessions
+  ownerScanTimer = setInterval(() => {
+    const current = discoverOwnerSessions();
+    const currentPids = new Set(current.map((s) => s.pid));
+
+    // Remove tracked agents whose processes are gone
+    for (const [sid, agent] of ownerTracked) {
+      if (agent.agentType !== "owner") continue;
+      // Check if any owner session still maps to this JSONL
+      const stillAlive = current.some((s) => {
+        const pd = cwdToProjectDir(s.cwd);
+        return agent.filePath.startsWith(pd);
+      });
+      if (!stillAlive) {
+        ownerTracked.delete(sid);
+        onStateUpdate(agent.agentName, {
+          id: agent.agentName,
+          role: "owner",
+          name: agent.agentName,
+          status: "idle",
+          task: "Session ended",
+        });
+      }
+    }
+  }, SCAN_INTERVAL_MS);
+}
+
+export function stopOwnerScanner() {
+  if (ownerScanTimer) {
+    clearInterval(ownerScanTimer);
+    ownerScanTimer = null;
+  }
+  if (ownerTailTimer) {
+    clearInterval(ownerTailTimer);
+    ownerTailTimer = null;
+  }
+  ownerTracked.clear();
+  ownerPaneMap.clear();
+  console.log("[SCANNER] Owner scanner stopped");
 }

@@ -13,9 +13,13 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
+  discoverOwnerSessions,
+  getOwnerPane,
   getTeamConfig,
   listTeams,
+  startOwnerScanner,
   startScanner,
+  stopOwnerScanner,
   stopScanner,
 } from "./jsonl-scanner";
 
@@ -111,7 +115,12 @@ function readState(): AgentState[] {
 }
 
 function writeState(state: AgentState[]) {
+  internalWrite = true;
   writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+  // Reset after a tick so the fs.watch event (fired async) sees the flag
+  setTimeout(() => {
+    internalWrite = false;
+  }, 50);
 }
 
 function inferRole(agentId: string): string {
@@ -429,51 +438,48 @@ async function handleRequest(req: Request): Promise<Response> {
       return json({ error: "agentId and message required" }, 400);
     }
 
-    // Look up tmux pane ID from active team config
+    // Look up tmux pane ID from active team config or owner sessions
     let tmuxSent = false;
+    let paneId: string | null = null;
+
     if (activeTeamName) {
       const config = getTeamConfig(activeTeamName);
       if (config) {
         const member = config.members.find((m) => m.name === body.agentId);
-        const paneId = member?.tmuxPaneId || resolveLeadPane(config, member);
-        if (paneId) {
-          try {
-            // Send text as literal (-l prevents key name interpretation)
-            Bun.spawnSync([
-              "tmux",
-              "send-keys",
-              "-t",
-              paneId,
-              "-l",
-              body.message,
-            ]);
-            // Send Enter separately to trigger submission
-            const proc = Bun.spawnSync([
-              "tmux",
-              "send-keys",
-              "-t",
-              paneId,
-              "Enter",
-            ]);
-            tmuxSent = proc.exitCode === 0;
-            if (tmuxSent) {
-              console.log(
-                `[MSG] Sent to ${body.agentId} via tmux pane ${paneId}`,
-              );
-            } else {
-              console.error(
-                `[MSG] tmux send-keys failed for ${body.agentId}: exit ${proc.exitCode}`,
-              );
-            }
-          } catch (e) {
-            console.error(`[MSG] tmux error for ${body.agentId}:`, e);
-          }
+        paneId = member?.tmuxPaneId || resolveLeadPane(config, member);
+      }
+    } else {
+      // Check owner session panes
+      paneId = getOwnerPane(body.agentId);
+    }
+
+    if (paneId) {
+      try {
+        // Send text as literal (-l prevents key name interpretation)
+        Bun.spawnSync(["tmux", "send-keys", "-t", paneId, "-l", body.message]);
+        // Send Enter separately to trigger submission
+        const proc = Bun.spawnSync([
+          "tmux",
+          "send-keys",
+          "-t",
+          paneId,
+          "Enter",
+        ]);
+        tmuxSent = proc.exitCode === 0;
+        if (tmuxSent) {
+          console.log(`[MSG] Sent to ${body.agentId} via tmux pane ${paneId}`);
         } else {
-          console.log(
-            `[MSG] No tmux pane for ${body.agentId} — message saved to inbox only`,
+          console.error(
+            `[MSG] tmux send-keys failed for ${body.agentId}: exit ${proc.exitCode}`,
           );
         }
+      } catch (e) {
+        console.error(`[MSG] tmux error for ${body.agentId}:`, e);
       }
+    } else {
+      console.log(
+        `[MSG] No tmux pane for ${body.agentId} — message saved to inbox only`,
+      );
     }
 
     // Also write to file inbox as backup
@@ -556,6 +562,45 @@ async function handleRequest(req: Request): Promise<Response> {
     }
   }
 
+  // ── GET /owner ── discover standalone Claude Code sessions
+  if (method === "GET" && path === "/owner") {
+    const sessions = discoverOwnerSessions();
+    return json(sessions);
+  }
+
+  // ── POST /scan/owner ── start scanning owner sessions (no team)
+  if (method === "POST" && path === "/scan/owner") {
+    stopScanner();
+    stopOwnerScanner();
+    activeTeamName = null;
+    cachedLeadPane = null;
+    cachedLeadTeam = null;
+    writeState([]);
+    broadcast("state_update", []);
+
+    const sessions = discoverOwnerSessions();
+    if (sessions.length === 0) {
+      return json({ ok: true, sessions: 0 });
+    }
+
+    startOwnerScanner(
+      sessions,
+      (agentId, update) => {
+        updateAgentState(agentId, update as Partial<AgentState>);
+      },
+      (agentId, reply) => {
+        broadcast("agent_reply", { agentId, reply });
+        appendLog({
+          timestamp: new Date().toISOString(),
+          type: "agent_reply",
+          agentId,
+          data: { reply: reply.slice(0, 200) },
+        });
+      },
+    );
+    return json({ ok: true, sessions: sessions.length });
+  }
+
   // ── GET /teams ── list available teams from ~/.claude/teams/
   if (method === "GET" && path === "/teams") {
     return json(listTeams());
@@ -588,6 +633,7 @@ async function handleRequest(req: Request): Promise<Response> {
     }
     // Clear existing state when switching teams
     stopScanner();
+    stopOwnerScanner();
     activeTeamName = teamName;
     cachedLeadPane = null;
     cachedLeadTeam = null;
@@ -615,6 +661,12 @@ async function handleRequest(req: Request): Promise<Response> {
   // ── DELETE /scan ── stop JSONL scanning
   if (method === "DELETE" && path === "/scan") {
     stopScanner();
+    stopOwnerScanner();
+    activeTeamName = null;
+    cachedLeadPane = null;
+    cachedLeadTeam = null;
+    writeState([]);
+    broadcast("state_update", []);
     return json({ ok: true, scanning: false });
   }
 
@@ -644,7 +696,10 @@ async function handleRequest(req: Request): Promise<Response> {
 
 // ─── Watch state file for external changes (Claude Code writing directly) ───
 let watchDebounce: ReturnType<typeof setTimeout> | null = null;
+let internalWrite = false;
+
 watch(STATE_FILE, () => {
+  if (internalWrite) return;
   if (watchDebounce) clearTimeout(watchDebounce);
   watchDebounce = setTimeout(() => {
     watchDebounce = null;
@@ -669,6 +724,39 @@ function checkForTeamChanges() {
     console.log(
       `[TEAMS] Team list changed — ${teams.length} active team(s): ${teams.map((t) => t.name).join(", ") || "none"}`,
     );
+
+    // Auto-stop scanning if the active team was dismissed
+    if (activeTeamName && !teams.find((t) => t.name === activeTeamName)) {
+      console.log(
+        `[TEAMS] Active team "${activeTeamName}" is no longer alive — stopping scanner`,
+      );
+      stopScanner();
+      activeTeamName = null;
+      cachedLeadPane = null;
+      cachedLeadTeam = null;
+      writeState([]);
+      broadcast("state_update", []);
+
+      // Fall back to owner session scanning when no teams remain
+      if (teams.length === 0) {
+        const ownerSessions = discoverOwnerSessions();
+        if (ownerSessions.length > 0) {
+          console.log(
+            `[TEAMS] No teams — falling back to ${ownerSessions.length} owner session(s)`,
+          );
+          startOwnerScanner(
+            ownerSessions,
+            (agentId, update) => {
+              updateAgentState(agentId, update as Partial<AgentState>);
+            },
+            (agentId, reply) => {
+              broadcast("agent_reply", { agentId, reply });
+            },
+          );
+          broadcast("owner_sessions", ownerSessions.length);
+        }
+      }
+    }
   }
 }
 
@@ -736,6 +824,8 @@ console.log(`
 ║  http://localhost:${PORT}                ║
 ║  ws://localhost:${PORT}                  ║
 ╠═══════════════════════════════════════╣
+║  GET  /owner           → owner sessions║
+║  POST /scan/owner      → scan owner   ║
 ║  GET  /teams           → list teams   ║
 ║  GET  /teams/:name     → team details ║
 ║  POST /scan            → scan team    ║
