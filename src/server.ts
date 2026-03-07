@@ -888,7 +888,7 @@ console.log(`
 ║  http://localhost:${PORT}                ║
 ║  ws://localhost:${PORT}                  ║
 ╠═══════════════════════════════════════╣
-║  GET  /owner           → owner sessions║
+║  GET  /owner           → owner session ║
 ║  POST /scan/owner      → scan owner   ║
 ║  GET  /teams           → list teams   ║
 ║  GET  /teams/:name     → team details ║
