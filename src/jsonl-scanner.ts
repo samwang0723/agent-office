@@ -427,7 +427,7 @@ function readNewLines(
     const stat = statSync(agent.filePath);
     if (stat.size <= agent.fileOffset) return;
 
-    const readSize = Math.min(stat.size - agent.fileOffset, 64 * 1024);
+    const readSize = Math.min(stat.size - agent.fileOffset, 512 * 1024);
     const buf = Buffer.alloc(readSize);
     const fd = openSync(agent.filePath, "r");
     readSync(fd, buf, 0, readSize, agent.fileOffset);
@@ -515,6 +515,17 @@ function processRecord(
     const content = msg.content;
     if (!Array.isArray(content)) return false;
 
+    // Extract text blocks first (for reply emission)
+    const texts = content.filter(
+      (b: Record<string, unknown>) => b.type === "text"
+    );
+    if (texts.length > 0) {
+      const text = ((texts[0] as Record<string, unknown>).text as string) || "";
+      if (text.trim()) {
+        agent.lastReplyText = text;
+      }
+    }
+
     const tools = content.filter(
       (b: Record<string, unknown>) => b.type === "tool_use"
     );
@@ -533,15 +544,11 @@ function processRecord(
       return true;
     }
 
-    const texts = content.filter(
-      (b: Record<string, unknown>) => b.type === "text"
-    );
     if (texts.length > 0) {
-      agent.status = "thinking";
       const text = ((texts[0] as Record<string, unknown>).text as string) || "";
+      agent.status = "thinking";
       agent.task = text.slice(0, 80).replace(/\n/g, " ") || "Thinking...";
       agent.lastActiveTask = agent.task;
-      agent.lastReplyText = text;
       return true;
     }
   }
