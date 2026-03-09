@@ -618,17 +618,17 @@ function getContextMax(model: string): number {
   return 200000;
 }
 
-/** Map team config agentType to UI role */
+/** Map team config agentType to UI role (keyword-based matching) */
 function mapAgentType(agentType: string): string {
   const t = agentType.toLowerCase();
-  if (t === "team-lead") return "lead";
-  if (t === "owner") return "owner";
-  if (t === "pm") return "pm";
-  if (t === "architect") return "architect";
-  if (t === "dev") return "dev";
-  if (t === "qa") return "qa";
-  if (t === "security" || t === "security-reviewer") return "security";
-  if (t === "explore" || t === "explorer") return "explorer";
+  if (t.includes("lead")) return "lead";
+  if (t.includes("owner")) return "owner";
+  if (t.includes("security")) return "security";
+  if (t.includes("architect")) return "architect";
+  if (t.includes("explor")) return "explorer";
+  if (t.includes("qa")) return "qa";
+  if (t.includes("pm")) return "pm";
+  if (t.includes("dev")) return "dev";
   return "dev";
 }
 
