@@ -191,7 +191,7 @@ function readState(): AgentState[] {
         writeFileSync(backupFile, readFileSync(STATE_FILE));
         console.error(`[STATE] Corrupted state backed up to ${backupFile}`);
       }
-    } catch {}
+    } catch { }
     console.error("[STATE] Error reading state, resetting to defaults:", e);
     writeFileSync(STATE_FILE, JSON.stringify(DEFAULT_STATE, null, 2));
     return [...DEFAULT_STATE];
@@ -279,7 +279,7 @@ function appendLog(entry: BridgeLog) {
     lines.push(line.trim());
     // Keep last 500 log lines
     writeFileSync(LOG_FILE, `${lines.slice(-500).join("\n")}\n`);
-  } catch {}
+  } catch { }
 }
 
 // ─── Inbox helpers ───────────────────────────────────────────────────────────
@@ -298,7 +298,7 @@ function writeInbox(agentId: string, message: string, from = "user") {
   if (existsSync(inboxFile)) {
     try {
       inbox = JSON.parse(readFileSync(inboxFile, "utf8"));
-    } catch {}
+    } catch { }
   }
   inbox.push(msg);
   writeFileSync(inboxFile, JSON.stringify(inbox, null, 2));
@@ -472,7 +472,7 @@ function resolveLeadPane(
       );
       return bestPaneId;
     }
-  } catch {}
+  } catch { }
   return null;
 }
 
@@ -769,7 +769,7 @@ watch(STATE_FILE, () => {
     try {
       const state = readState();
       broadcast("state_update", state);
-    } catch {}
+    } catch { }
   }, 100);
 });
 
@@ -878,32 +878,43 @@ const server = Bun.serve({
       try {
         const data = JSON.parse(String(msg));
         if (data.type === "ping") ws.send(JSON.stringify({ type: "pong" }));
-      } catch {}
+      } catch { }
     },
   },
 });
 
-console.log(`
-╔═══════════════════════════════════════╗
-║  Agent Office Bridge Server           ║
-║  http://localhost:${PORT}                ║
-║  ws://localhost:${PORT}                  ║
-╠═══════════════════════════════════════╣
-║  GET  /owner           → owner session ║
-║  POST /scan/owner      → scan owner   ║
-║  GET  /teams           → list teams   ║
-║  GET  /teams/:name     → team details ║
-║  POST /scan            → scan team    ║
-║  GET  /state           → all agents   ║
-║  POST /state           → update state ║
-║  POST /message         → msg to agent ║
-║  GET  /inbox/:id       → agent polls  ║
-║  POST /reply           → agent reply  ║
-║  GET  /logs            → bridge logs  ║
-║  GET  /mode            → current mode ║
-║  GET  /health          → status       ║
-╚═══════════════════════════════════════╝
-`);
+{
+  const W = 42; // inner width between ║ chars
+  const pad = (s: string) => `║  ${s}${"".padEnd(W - 2 - s.length)}║`;
+  const hr = `╠${"═".repeat(W)}╣`;
+  const top = `╔${"═".repeat(W)}╗`;
+  const bot = `╚${"═".repeat(W)}╝`;
+  const routes = [
+    ["GET ", "/owner          ", "owner sessions"],
+    ["POST", "/scan/owner     ", "scan owners"],
+    ["GET ", "/teams          ", "list teams"],
+    ["GET ", "/teams/:name    ", "team details"],
+    ["POST", "/scan           ", "scan team"],
+    ["GET ", "/state          ", "all agents"],
+    ["POST", "/state          ", "update state"],
+    ["POST", "/message        ", "msg to agent"],
+    ["GET ", "/inbox/:id      ", "agent polls"],
+    ["POST", "/reply          ", "agent reply"],
+    ["GET ", "/logs           ", "bridge logs"],
+    ["GET ", "/mode           ", "current mode"],
+    ["GET ", "/health         ", "status"],
+  ];
+  const lines = [
+    top,
+    pad("Agent Office Bridge Server"),
+    pad(`http://localhost:${PORT}`),
+    pad(`ws://localhost:${PORT}`),
+    hr,
+    ...routes.map(([m, p, d]) => pad(`${m} ${p} → ${d}`)),
+    bot,
+  ];
+  console.log(`\n${lines.join("\n")}`);
+}
 
 // ─── Auto-detect mode on startup ─────────────────────────────────────────────
 const startupTeams = listTeams();
