@@ -182,9 +182,8 @@ export function startScanner(
   registerMembers(config);
   initialRegistrationDone = true;
 
-  // Initial JSONL correlation — suppress replies during catch-up read
-  // to avoid re-emitting historical messages already saved in UI localStorage
-  correlateAndTail(config, onStateUpdate);
+  // Initial JSONL correlation
+  correlateAndTail(config, onStateUpdate, onReply);
 
   // Periodic scan — re-read config to pick up new/removed members
   scanTimer = setInterval(() => {
@@ -209,8 +208,7 @@ export function startScanner(
       }
     }
 
-    // Suppress replies for newly discovered sessions (catch-up read)
-    correlateAndTail(freshConfig, onStateUpdate);
+    correlateAndTail(freshConfig, onStateUpdate, onReply);
   }, SCAN_INTERVAL_MS);
 
   // Periodic tail for live status
@@ -816,8 +814,7 @@ export function startOwnerScanner(
     console.log(
       `[SCANNER] Owner session: ${agentName} → ${sessionId.slice(0, 8)}`,
     );
-    // Suppress replies during initial catch-up to avoid duplicating saved messages
-    readNewLines(agent, onStateUpdate);
+    readNewLines(agent, onStateUpdate, onReply);
   }
 
   // Tail timer for live updates
@@ -905,8 +902,7 @@ export function startOwnerScanner(
       console.log(
         `[SCANNER] New owner session: ${agentName} → ${sessionId.slice(0, 8)}`,
       );
-      // Suppress replies during catch-up for newly discovered sessions
-      readNewLines(agent, onStateUpdate);
+      readNewLines(agent, onStateUpdate, onReply);
     }
 
     // Remove tracked agents whose processes are gone
