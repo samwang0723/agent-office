@@ -191,7 +191,7 @@ function readState(): AgentState[] {
         writeFileSync(backupFile, readFileSync(STATE_FILE));
         console.error(`[STATE] Corrupted state backed up to ${backupFile}`);
       }
-    } catch { }
+    } catch {}
     console.error("[STATE] Error reading state, resetting to defaults:", e);
     writeFileSync(STATE_FILE, JSON.stringify(DEFAULT_STATE, null, 2));
     return [...DEFAULT_STATE];
@@ -279,7 +279,7 @@ function appendLog(entry: BridgeLog) {
     lines.push(line.trim());
     // Keep last 500 log lines
     writeFileSync(LOG_FILE, `${lines.slice(-500).join("\n")}\n`);
-  } catch { }
+  } catch {}
 }
 
 // ─── Inbox helpers ───────────────────────────────────────────────────────────
@@ -298,7 +298,7 @@ function writeInbox(agentId: string, message: string, from = "user") {
   if (existsSync(inboxFile)) {
     try {
       inbox = JSON.parse(readFileSync(inboxFile, "utf8"));
-    } catch { }
+    } catch {}
   }
   inbox.push(msg);
   writeFileSync(inboxFile, JSON.stringify(inbox, null, 2));
@@ -472,7 +472,7 @@ function resolveLeadPane(
       );
       return bestPaneId;
     }
-  } catch { }
+  } catch {}
   return null;
 }
 
@@ -769,7 +769,7 @@ watch(STATE_FILE, () => {
     try {
       const state = readState();
       broadcast("state_update", state);
-    } catch { }
+    } catch {}
   }, 100);
 });
 
@@ -878,7 +878,7 @@ const server = Bun.serve({
       try {
         const data = JSON.parse(String(msg));
         if (data.type === "ping") ws.send(JSON.stringify({ type: "pong" }));
-      } catch { }
+      } catch {}
     },
   },
 });
