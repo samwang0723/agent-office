@@ -855,22 +855,99 @@ export function startOwnerScanner(
   ownerScanTimer = setInterval(() => {
     const current = discoverOwnerSessions();
 
+    // Register newly discovered sessions
+    for (const session of current) {
+      const projectDir = cwdToProjectDir(session.cwd);
+      if (!existsSync(projectDir)) continue;
+
+      let jsonlPath: string | null = null;
+      try {
+        const files = readdirSync(projectDir)
+          .filter((f) => f.endsWith(".jsonl"))
+          .map((f) => ({
+            name: f,
+            mtime: statSync(join(projectDir, f)).mtimeMs,
+          }))
+          .sort((a, b) => b.mtime - a.mtime);
+
+        for (const file of files) {
+          const filePath = join(projectDir, file.name);
+          const identity = identifyAgent(filePath);
+          if (identity?.teamName) continue;
+          jsonlPath = filePath;
+          break;
+        }
+      } catch {}
+
+      if (!jsonlPath) continue;
+      const sessionId = jsonlPath.split("/").pop()?.replace(".jsonl", "") || "";
+      if (ownerTracked.has(sessionId)) continue;
+
+      session.jsonlPath = jsonlPath;
+      const agentName = `owner-${session.projectName}`;
+      const stat = statSync(jsonlPath);
+
+      if (session.tmuxPane) {
+        ownerPaneMap.set(agentName, session.tmuxPane);
+      }
+
+      onStateUpdate(agentName, {
+        id: agentName,
+        role: "owner",
+        name: agentName,
+        status: "idle",
+        task: session.cwd,
+        model: "unknown",
+        hasTmux: !!session.tmuxPane,
+      });
+
+      const agent: TrackedAgent = {
+        agentName,
+        teamName: "__owner__",
+        agentType: "owner",
+        model: "unknown",
+        sessionId,
+        filePath: jsonlPath,
+        fileOffset: Math.max(0, stat.size - 64 * 1024),
+        lineBuffer: "",
+        lastTool: "",
+        lastActivity: Date.now(),
+        status: "idle",
+        task: session.cwd,
+        lastActiveTask: "",
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheCreateTokens: 0,
+        lastContextUsed: 0,
+        actualModel: "",
+        lastReplyText: "",
+        hasTmux: !!session.tmuxPane,
+      };
+
+      ownerTracked.set(sessionId, agent);
+      console.log(
+        `[SCANNER] New owner session: ${agentName} → ${sessionId.slice(0, 8)}`,
+      );
+      readNewLines(agent, onStateUpdate, onReply);
+    }
+
     // Remove tracked agents whose processes are gone
     for (const [sid, agent] of ownerTracked) {
       if (agent.agentType !== "owner") continue;
-      // Check if any owner session still maps to this JSONL
       const stillAlive = current.some((s) => {
         const pd = cwdToProjectDir(s.cwd);
         return agent.filePath.startsWith(pd);
       });
       if (!stillAlive) {
         ownerTracked.delete(sid);
+        ownerPaneMap.delete(agent.agentName);
         onStateUpdate(agent.agentName, {
           id: agent.agentName,
           role: "owner",
           name: agent.agentName,
           status: "idle",
-          task: "Session ended",
+          task: "__removed__",
         });
       }
     }
