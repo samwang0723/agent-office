@@ -553,36 +553,9 @@ function processRecord(
     }
   }
 
-  // Tool results come in "user" type records with tool_result content blocks
+  // Tool results are intermediate artifacts — skip entirely.
+  // Only actual assistant text blocks should appear as replies.
   if (type === "user") {
-    const msg = rec.message as Record<string, unknown>;
-    if (!msg) return false;
-    const content = msg.content;
-    if (!Array.isArray(content)) return false;
-
-    const toolResults = content.filter(
-      (b: Record<string, unknown>) => b.type === "tool_result",
-    );
-    if (toolResults.length > 0) {
-      const result = toolResults[0] as Record<string, unknown>;
-      let text = "";
-      if (typeof result.content === "string") {
-        text = result.content;
-      } else if (Array.isArray(result.content)) {
-        // content can be [{type:"text", text:"..."}]
-        const textBlocks = (result.content as Record<string, unknown>[]).filter(
-          (b) => b.type === "text",
-        );
-        if (textBlocks.length > 0) {
-          text = (textBlocks[0].text as string) || "";
-        }
-      }
-      // Only forward substantial tool results (skip short outputs like "ok" or file contents)
-      if (text.trim() && text.length > 100) {
-        agent.lastReplyText = text;
-        return false; // Don't change status — let the next assistant message handle that
-      }
-    }
     return false;
   }
 
