@@ -69,13 +69,20 @@
       z-index: 0;
     }
 
-    #bg-img {
+    #bg-img, #bg-img-next {
       width: 100%;
       height: 100%;
       object-fit: cover;
       object-position: center 40%;
       filter: brightness(.3) saturate(.5) sepia(.2);
+      position: absolute;
+      inset: 0;
     }
+    #bg-img-next {
+      opacity: 0;
+      transition: opacity .6s ease-in-out;
+    }
+    #bg-img-next.visible { opacity: 1; }
 
     /* Rich vignette — heavier on sides where panels sit */
     #bg-wrap::after {
@@ -2324,7 +2331,7 @@
 
 <body>
 
-  <div id="bg-wrap"><img id="bg-img" alt=""></div>
+  <div id="bg-wrap"><img id="bg-img" alt=""><img id="bg-img-next" alt=""></div>
 
   <!-- Toast notification container -->
   <div id="toast-container"></div>
@@ -3187,6 +3194,9 @@
       const name = ag.name || ag.id;
       document.getElementById('msg-col').style.setProperty('--agent-col', color);
 
+      // Switch background based on role
+      switchBackground(ag.role);
+
       // Show chat area
       document.getElementById('empty-state').classList.add('hidden');
       const ca = document.getElementById('chat-area');
@@ -3771,8 +3781,10 @@
             else selectTeam('__owner__');
           } else if (modeData.mode === 'team' && modeData.team) {
             document.getElementById('team-select').value = modeData.team;
+            switchBackground('lead');
             addLog('system', `Resuming team: ${modeData.team}`);
           } else if (modeData.mode === 'owner') {
+            switchBackground('owner');
             addLog('system', 'Resuming owner mode');
           }
         }
@@ -3832,6 +3844,7 @@
         // Set team context before loading history so localStorage key is correct
         currentServerMode = teamName === '__owner__' ? 'owner' : 'team';
         currentServerTeam = teamName === '__owner__' ? null : teamName;
+        switchBackground(teamName === '__owner__' ? 'owner' : 'lead');
         buildAvatars();
         loadChatHistory();
 
@@ -3855,9 +3868,11 @@
         addLog('system', `Mode: team (${data.team})`);
         const sel = document.getElementById('team-select');
         if (sel.value !== data.team) sel.value = data.team;
+        switchBackground('lead');
       } else if (data.mode === 'owner') {
         addLog('system', 'Mode: owner');
         document.getElementById('team-select').value = '';
+        switchBackground('owner');
       } else {
         addLog('system', 'Mode: idle');
         document.getElementById('team-select').value = '';
@@ -3872,6 +3887,7 @@
         _msgRenderCounts = {};
         deselect();
         buildAvatars();
+        switchBackground(null);
       }
       updateTLPanel();
     }
@@ -4056,6 +4072,34 @@
     // ASSETS
     // ══════════════════════════════════════════
     var BG = "sprites/bg.webp";
+    var BG_OWNER = "sprites/bg_owner.webp";
+    var BG_DEV = "sprites/bg_dev.webp";
+    var BG_EXPLORER = "sprites/bg_explorer.webp";
+    var BG_PM = "sprites/bg_pm.webp";
+
+    var ROLE_BG = {
+      owner: BG_OWNER,
+      dev: BG_DEV,
+      qa: BG_DEV,
+      architect: BG_DEV,
+      explorer: BG_EXPLORER,
+      pm: BG_PM,
+    };
+
+    var _currentBg = BG;
+    function switchBackground(role) {
+      var target = ROLE_BG[role] || BG;
+      if (target === _currentBg) return;
+      _currentBg = target;
+      var imgCur = document.getElementById('bg-img');
+      var imgNext = document.getElementById('bg-img-next');
+      imgNext.src = target;
+      imgNext.classList.add('visible');
+      setTimeout(function() {
+        imgCur.src = target;
+        imgNext.classList.remove('visible');
+      }, 620);
+    }
     // Team Lead (male — node lead)
     var MALE_IDLE = "sprites/male_idle.webp";
     var MALE_THINKING = "sprites/male_thinking.webp";
