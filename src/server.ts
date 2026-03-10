@@ -743,6 +743,28 @@ async function handleRequest(req: Request): Promise<Response> {
     });
   }
 
+  // ── Serve static sprites ──
+  if (method === "GET" && path.startsWith("/sprites/")) {
+    const safeName = path.slice(9).replace(/[^a-z0-9_.\-]/gi, "");
+    const filePath = join(ROOT_DIR, "ui", "sprites", safeName);
+    if (existsSync(filePath)) {
+      const ext = safeName.split(".").pop() || "";
+      const mimeTypes: Record<string, string> = {
+        webp: "image/webp",
+        png: "image/png",
+        jpg: "image/jpeg",
+        jpeg: "image/jpeg",
+      };
+      return new Response(Bun.file(filePath), {
+        headers: {
+          "Content-Type": mimeTypes[ext] || "application/octet-stream",
+          "Cache-Control": "public, max-age=31536000, immutable",
+        },
+      });
+    }
+    return new Response("Not found", { status: 404 });
+  }
+
   // ── Serve UI ──
   if (method === "GET" && (path === "/" || path === "/ui")) {
     const uiFile = join(ROOT_DIR, "ui", "index.html");
