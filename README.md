@@ -2,7 +2,7 @@
 
 Pixel-art game UI for visualizing Claude Code multi-agent teams. Watch agents work in real-time, send them messages, and monitor activity — all through a retro-styled browser dashboard connected via WebSocket.
 
-<img width="1996" height="1176" alt="Screenshot 2026-03-09 at 9 25 07 AM" src="https://github.com/user-attachments/assets/c2585758-ea5a-4063-b353-c9ab29448509" />
+<img width="1996" height="1176" alt="Screenshot 2026-03-09 at 9 25 07 AM" src="https://github.com/user-attachments/assets/c2585758-ea5a-4063-b353-c9ab29448509" />
 
 
 ## Quick Start
@@ -34,7 +34,10 @@ agent-office/
 │   ├── jsonl-scanner.ts    # Team JSONL transcript scanner
 │   └── agent-client.ts     # Helper library for CC agents
 ├── ui/
-│   └── index.html          # Pixel-art game UI (self-contained)
+│   ├── index.html          # Pixel-art game UI (CSS/JS inline)
+│   ├── sprites/            # WebP sprite images (agent avatars, background)
+│   ├── mobile.ts           # Mobile-specific logic (extracted for testability)
+│   └── mobile.test.ts      # Tests for mobile logic
 ├── data/                   # Runtime state (gitignored, auto-created)
 ├── Makefile
 ├── AGENT_OFFICE.md         # System prompt template for agents
@@ -49,6 +52,9 @@ make server              # Start the bridge server on :3456
 make server PORT=4000    # Start on a custom port
 make dev                 # Start with watch mode (auto-restart on changes)
 make dev PORT=5000       # Watch mode on a custom port
+make lint                # Run Biome linter
+make typecheck           # Run TypeScript type checking
+make ci                  # Run all checks (typecheck + lint)
 make clean               # Remove runtime data
 ```
 
@@ -83,6 +89,11 @@ curl -X POST http://localhost:3456/scan \
   -d '{"team":"my-team-name"}'
 ```
 
+Or scan standalone (non-team) Claude Code sessions:
+```bash
+curl -X POST http://localhost:3456/scan/owner
+```
+
 ## API Reference
 
 | Method | Path | Description |
@@ -97,17 +108,23 @@ curl -X POST http://localhost:3456/scan \
 | `GET` | `/teams` | List available teams |
 | `GET` | `/teams/:name` | Team config details |
 | `POST` | `/scan` | Start JSONL scanning for a team |
+| `POST` | `/scan/owner` | Start scanning standalone owner sessions |
 | `DELETE` | `/scan` | Stop scanning |
+| `GET` | `/mode` | Current server mode (idle/team/owner) |
+| `GET` | `/owner` | Discover standalone Claude Code sessions |
 | `GET` | `/logs` | Recent bridge logs |
 | `GET` | `/health` | Server health check |
+| `GET` | `/sprites/*` | Static sprite images (WebP, cached) |
 | `GET` | `/` | Serves the game UI |
 | `WS` | `/` | WebSocket for real-time events |
 
 ### WebSocket Events (server → UI)
 ```json
-{"event": "state_update", "data": [...agents]}
-{"event": "agent_reply",  "data": {"agentId": "dev-1", "reply": "..."}}
-{"event": "message_sent", "data": {"agentId": "dev-1", "message": "..."}}
+{"event": "state_update",  "data": [...agents]}
+{"event": "agent_reply",   "data": {"agentId": "dev-1", "reply": "..."}}
+{"event": "message_sent",  "data": {"agentId": "dev-1", "message": "..."}}
+{"event": "mode",          "data": {"mode": "team", "team": "my-team"}}
+{"event": "teams_updated", "data": [...teams]}
 ```
 
 ## Agent State Schema
@@ -115,13 +132,14 @@ curl -X POST http://localhost:3456/scan \
 ```typescript
 {
   id: string           // "pm-1" | "arch-1" | "dev-1" | "qa-1" | "sec-1"
-  role: string         // "pm" | "architect" | "dev" | "qa" | "security"
+  role: string         // "pm" | "architect" | "dev" | "qa" | "security" | "lead" | "owner"
   name: string         // Display name
   status: string       // "working" | "thinking" | "idle" | "blocked" | "reviewing"
-  task: string         // Current task description (max 60 chars)
+  task: string         // Current task description
   progress?: number    // 0-100
   model?: string       // e.g. "claude-opus-4-6"
   tokens?: number      // Tokens used
+  hasTmux?: boolean    // Whether agent has a tmux pane for messaging
 }
 ```
 
