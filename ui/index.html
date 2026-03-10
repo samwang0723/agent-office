@@ -639,6 +639,9 @@ body.resizing-right { cursor:col-resize !important; user-select:none; }
   transition:opacity .15s;
   display:block;
 }
+#tl-img.owner-sprite {
+  max-width:270px;
+}
 
 /* TL messages */
 #tl-msg-scroll {
@@ -2006,6 +2009,7 @@ function tlSetSprite(state) {
   const src = window[key];
   if (src && img.dataset.spriteKey !== key) {
     img.dataset.spriteKey = key;
+    img.classList.toggle('owner-sprite', prefix === 'OWNER');
     img.style.opacity = '.65';
     setTimeout(() => { img.src = src; img.style.opacity = '1'; }, 100);
   }
