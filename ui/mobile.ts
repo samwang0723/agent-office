@@ -7,7 +7,8 @@ export const MOBILE_BREAKPOINT = 768;
 
 /** Returns true if viewport width is at or below mobile breakpoint */
 export function isMobile(viewportWidth?: number): boolean {
-  const w = viewportWidth ?? (typeof window !== 'undefined' ? window.innerWidth : 1024);
+  const w =
+    viewportWidth ?? (typeof window !== "undefined" ? window.innerWidth : 1024);
   return w <= MOBILE_BREAKPOINT;
 }
 
@@ -30,7 +31,7 @@ export function getDisplayAgents(agents: Agent[], mobile: boolean): Agent[] {
     return agents;
   }
   // Desktop: filter out lead/owner (they appear in the right panel)
-  return agents.filter(a => a.role !== 'lead' && a.role !== 'owner');
+  return agents.filter((a) => a.role !== "lead" && a.role !== "owner");
 }
 
 /**
@@ -39,10 +40,13 @@ export function getDisplayAgents(agents: Agent[], mobile: boolean): Agent[] {
  * On mobile: always center (TL panel is hidden).
  * On desktop: lead/owner → TL panel, others → center.
  */
-export function getChatTarget(agent: Agent, mobile: boolean): 'center' | 'tl-panel' {
-  if (mobile) return 'center';
-  if (agent.role === 'lead' || agent.role === 'owner') return 'tl-panel';
-  return 'center';
+export function getChatTarget(
+  agent: Agent,
+  mobile: boolean,
+): "center" | "tl-panel" {
+  if (mobile) return "center";
+  if (agent.role === "lead" || agent.role === "owner") return "tl-panel";
+  return "center";
 }
 
 /**

@@ -7,8 +7,8 @@
     "start": "bun run src/server.ts",
     "dev": "bun --watch run src/server.ts",
     "typecheck": "tsc --noEmit",
-    "lint": "biome check src/",
-    "lint:fix": "biome check --write src/",
+    "lint": "biome check src/ ui/*.ts",
+    "lint:fix": "biome check --write src/ ui/*.ts",
     "ci": "bun run typecheck && bun run lint"
   },
   "devDependencies": {
