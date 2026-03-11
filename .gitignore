@@ -5,5 +5,8 @@ node_modules/
 # Runtime data
 data/
 
+# Build output (regenerated via `bun run build`)
+dist/
+
 # Claude Code memory (keep CLAUDE.md tracked, ignore session files)
 CLAUDE-*.md
