@@ -7,22 +7,32 @@ Pixel-art game UI for visualizing Claude Code multi-agent teams. Watch agents wo
 
 ## Quick Start
 
-### Prerequisites
-- [Bun](https://bun.sh) runtime
+### Option A: Install via npx (recommended)
 
-### 1. Start the bridge server
+Requires [Bun](https://bun.sh) runtime.
+
 ```bash
+npx cc-agent-office
+```
+
+This starts the bridge server, auto-opens `http://localhost:3456` in your browser, and begins scanning for active Claude Code agent teams.
+
+```bash
+npx cc-agent-office --port 4000    # Custom port
+npx cc-agent-office --no-open      # Don't auto-open browser
+npx cc-agent-office --help         # Show all options
+```
+
+### Option B: Clone and run locally
+
+```bash
+git clone https://github.com/samwang0723/agent-office.git
+cd agent-office
 make server
 # → http://localhost:3456
 ```
 
-### 2. Open the UI
-```bash
-open http://localhost:3456
-```
-Or open `ui/index.html` directly in a browser for offline demo mode.
-
-### 3. Connect agents
+### Connect agents
 Click **CONNECT** in the UI (default: `ws://localhost:3456`). Status dot turns green when live.
 
 ## Project Structure
