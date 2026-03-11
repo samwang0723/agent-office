@@ -1,19 +1,50 @@
 {
-  "name": "agent-office",
+  "name": "cc-agent-office",
   "version": "0.3.0",
-  "private": true,
+  "description": "Pixel-art dashboard for Claude Code multi-agent teams — real-time agent statuses, messaging, and activity via WebSocket",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/samwang0723/agent-office.git"
+  },
+  "homepage": "https://github.com/samwang0723/agent-office#readme",
+  "bugs": {
+    "url": "https://github.com/samwang0723/agent-office/issues"
+  },
+  "keywords": [
+    "claude-code",
+    "multi-agent",
+    "dashboard",
+    "pixel-art",
+    "websocket",
+    "ai-agents",
+    "cli"
+  ],
+  "bin": {
+    "cc-agent-office": "bin/agent-office.js"
+  },
+  "files": [
+    "dist/",
+    "ui/index.html",
+    "ui/sprites/*.webp",
+    "bin/"
+  ],
   "scripts": {
     "start": "bun run src/server.ts",
     "dev": "bun --watch run src/server.ts",
+    "build": "bun build src/server.ts --outdir dist --target bun",
     "typecheck": "tsc --noEmit",
     "lint": "biome check src/ ui/*.ts",
     "lint:fix": "biome check --write src/ ui/*.ts",
-    "ci": "bun run typecheck && bun run lint"
+    "ci": "bun run typecheck && bun run lint",
+    "prepublishOnly": "bun run ci && bun run build"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.0",
     "@types/bun": "^1.2.0",
     "typescript": "^5.7.0"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
   }
 }
