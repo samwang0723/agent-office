@@ -32,9 +32,6 @@ make server
 # → http://localhost:3456
 ```
 
-### Connect agents
-Click **CONNECT** in the UI (default: `ws://localhost:3456`). Status dot turns green when live.
-
 ## Project Structure
 
 ```
