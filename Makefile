@@ -1,4 +1,4 @@
-.PHONY: help server dev lint typecheck ci clean
+.PHONY: help server dev lint typecheck ci clean publish
 
 PORT ?= 3456
 
@@ -25,3 +25,8 @@ ci: ## Run all checks (typecheck + lint)
 
 clean: ## Remove runtime data (logs, agent state, inboxes)
 	rm -rf data/
+
+publish: ## Build and publish to npm (runs ci + build first)
+	bun run ci
+	bun run build
+	npm publish
